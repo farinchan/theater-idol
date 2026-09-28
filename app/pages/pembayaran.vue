@@ -1,4 +1,6 @@
 <script setup lang="ts">
+const { appName } = useAppName()
+
 interface Transaction {
   id: string
   date: string
@@ -469,7 +471,7 @@ const handlePaymentSubmit = () => {
           </div>
 
           <p class="text-[11px] text-neutral-400">
-            Terima kasih atas kontribusi Anda untuk mendukung proyek komunitas fans Theater JKT48!
+            Terima kasih atas kontribusi Anda untuk mendukung proyek komunitas {{ appName }}!
           </p>
 
           <UButton

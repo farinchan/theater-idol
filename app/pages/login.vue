@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const router = useRouter()
+const { appName } = useAppName()
 const { user, login, register, isLoading, authError } = useAppwriteAuth()
 
 const mode = ref<'login' | 'register'>('login')
@@ -72,11 +73,8 @@ const handleSubmit = async () => {
     <div class="w-full max-w-md space-y-6">
       <!-- Brand & Header -->
       <div class="text-center space-y-2">
-        <NuxtLink to="/" class="inline-flex items-center gap-2 group">
-          <div class="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/30 font-black text-sm group-hover:scale-105 transition-transform">
-            JKT
-          </div>
-          <span class="font-extrabold text-xl tracking-tight text-neutral-900 dark:text-white">THEATER JKT48</span>
+        <NuxtLink to="/" class="inline-block group">
+          <span class="font-extrabold text-2xl tracking-tight text-neutral-900 dark:text-white uppercase">{{ appName }}</span>
         </NuxtLink>
 
         <div>

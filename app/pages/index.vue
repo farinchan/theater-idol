@@ -1,4 +1,6 @@
 <script setup lang="ts">
+const { appName } = useAppName()
+
 const stats = [
   { label: 'Setlist Aktif', value: '4 Setlist', icon: 'i-lucide-disc-3' },
   { label: 'Member Lineup', value: '45+ Member', icon: 'i-lucide-users' },
@@ -82,11 +84,11 @@ const recentReplays = [
         <div class="relative z-10 max-w-2xl space-y-5">
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-primary/20 text-white border border-primary/40 backdrop-blur-sm">
             <span class="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            Portal Theater JKT48
+            Portal {{ appName }}
           </div>
 
           <h1 class="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight">
-            Selamat Datang di <span class="text-primary underline decoration-primary/40 underline-offset-8">Theater JKT48</span>
+            Selamat Datang di <span class="text-primary underline decoration-primary/40 underline-offset-8">{{ appName }}</span>
           </h1>
 
           <p class="text-neutral-300 text-sm sm:text-base leading-relaxed">

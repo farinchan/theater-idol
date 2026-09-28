@@ -56,6 +56,7 @@ const isRouteActive = (to: string) => {
   return route.path === to
 }
 
+const { appName } = useAppName()
 const { user, logout } = useAppwriteAuth()
 
 const userAvatar = computed(() => user.value?.prefs?.avatar || '')
@@ -76,10 +77,7 @@ const handleLogout = async () => {
     <!-- Mobile Topbar -->
     <header class="md:hidden sticky top-0 z-40 h-16 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 px-4 flex items-center justify-between">
       <NuxtLink to="/" class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white shadow-sm shadow-primary/30 font-black text-xs">
-          JKT
-        </div>
-        <span class="font-extrabold text-base tracking-tight">THEATER JKT48</span>
+        <span class="font-extrabold text-base tracking-tight uppercase">{{ appName }}</span>
       </NuxtLink>
 
       <div class="flex items-center gap-2">
@@ -144,13 +142,8 @@ const handleLogout = async () => {
       <!-- Sidebar Header -->
       <div class="p-6 border-b border-neutral-100 dark:border-neutral-800/80">
         <div class="flex items-center justify-between">
-          <NuxtLink to="/" class="flex items-center gap-3 group" @click="isMobileOpen = false">
-            <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-md shadow-primary/30 font-black tracking-wider text-sm flex-shrink-0 group-hover:scale-105 transition-transform">
-              JKT
-            </div>
-            <div>
-              <div class="font-extrabold text-base tracking-tight leading-tight">THEATER JKT48</div>
-            </div>
+          <NuxtLink to="/" class="flex items-center" @click="isMobileOpen = false">
+            <div class="font-extrabold text-lg tracking-tight leading-tight uppercase">{{ appName }}</div>
           </NuxtLink>
 
           <!-- Close button on mobile -->
@@ -387,11 +380,8 @@ const handleLogout = async () => {
       <footer class="mt-auto border-t border-neutral-200 dark:border-neutral-800 py-6 px-4 sm:px-8 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-xs">
         <div class="max-w-7xl mx-auto space-y-3 text-xs text-neutral-500 dark:text-neutral-400">
           <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-              <div class="w-5 h-5 rounded-md bg-primary flex items-center justify-center text-white text-[10px] font-bold">
-                J
-              </div>
-              <span class="font-bold text-neutral-700 dark:text-neutral-300">Theater JKT48</span>
+            <div>
+              <span class="font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-tight">{{ appName }}</span>
             </div>
             <div class="flex items-center gap-4 flex-wrap text-xs">
               <NuxtLink to="/" class="hover:text-primary transition-colors">Home</NuxtLink>
@@ -407,7 +397,7 @@ const handleLogout = async () => {
             </div>
           </div>
           <p class="text-[11px] text-neutral-400 dark:text-neutral-500 text-center sm:text-left leading-relaxed">
-            <strong>Disclaimer:</strong> Website ini merupakan proyek komunitas penggemar (fan-made fansite) dan <u>bukan website resmi</u> dari manajemen JKT48 (JOT). Seluruh hak cipta nama, lagu, setlist, dan materi pertunjukan tetap merupakan hak milik JKT48.
+            <strong>Disclaimer:</strong> {{ appName }} merupakan proyek komunitas penggemar dan <u>bukan website resmi</u> dari manajemen JKT48 (JOT). Seluruh hak cipta nama, lagu, setlist, dan materi pertunjukan tetap merupakan hak milik JKT48.
           </p>
         </div>
       </footer>
