@@ -82,7 +82,7 @@ const recentReplays = [
         <div class="relative z-10 max-w-2xl space-y-5">
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-primary/20 text-white border border-primary/40 backdrop-blur-sm">
             <span class="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            Unofficial Fansite &bull; Komunitas Fans JKT48
+            Portal Theater JKT48
           </div>
 
           <h1 class="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight">

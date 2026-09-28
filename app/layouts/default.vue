@@ -55,6 +55,20 @@ const otherNavItems = [
 const isRouteActive = (to: string) => {
   return route.path === to
 }
+
+const { user, logout } = useAppwriteAuth()
+
+const userAvatar = computed(() => user.value?.prefs?.avatar || '')
+
+const userInitials = computed(() => {
+  if (!user.value) return 'U'
+  const name = user.value.name || user.value.email || 'User'
+  return name.slice(0, 2).toUpperCase()
+})
+
+const handleLogout = async () => {
+  await logout()
+}
 </script>
 
 <template>
@@ -66,16 +80,24 @@ const isRouteActive = (to: string) => {
           JKT
         </div>
         <span class="font-extrabold text-base tracking-tight">THEATER JKT48</span>
-        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">Fansite</span>
       </NuxtLink>
 
       <div class="flex items-center gap-2">
         <NuxtLink
+          v-if="user"
           to="/profile"
-          class="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-rose-400 text-white font-bold flex items-center justify-center text-xs shadow-sm"
-          aria-label="Profil Fans"
+          class="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-rose-400 text-white font-bold flex items-center justify-center text-xs shadow-sm overflow-hidden"
+          aria-label="Profil Akun"
         >
-          FJ
+          <img v-if="userAvatar" :src="userAvatar" alt="Avatar" class="w-full h-full object-cover" />
+          <span v-else>{{ userInitials }}</span>
+        </NuxtLink>
+        <NuxtLink
+          v-else
+          to="/login"
+          class="px-2.5 py-1 rounded-lg bg-primary text-white font-bold text-xs shadow-xs"
+        >
+          Masuk
         </NuxtLink>
         <UButton
           :icon="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"
@@ -128,9 +150,6 @@ const isRouteActive = (to: string) => {
             </div>
             <div>
               <div class="font-extrabold text-base tracking-tight leading-tight">THEATER JKT48</div>
-              <div class="text-[10px] font-bold text-primary flex items-center gap-1 mt-0.5">
-                <span class="px-1.5 py-0.2 rounded bg-primary/10 border border-primary/20">Unofficial Fansite</span>
-              </div>
             </div>
           </NuxtLink>
 
@@ -268,51 +287,68 @@ const isRouteActive = (to: string) => {
         </div>
       </div>
 
-      <!-- Sidebar Bottom Navigation (Profile Section) -->
+      <!-- Sidebar Bottom Navigation (Profile / Auth Section) -->
       <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/80 bg-neutral-50/70 dark:bg-neutral-900/70">
-        <!-- User Profile Card -->
-        <NuxtLink
-          to="/profile"
-          :class="[
-            'flex items-center gap-3 p-2.5 rounded-2xl transition-all border group',
-            isRouteActive('/profile')
-              ? 'bg-primary/10 border-primary/40 text-primary shadow-xs'
-              : 'bg-white dark:bg-neutral-800/90 border-neutral-200 dark:border-neutral-700/60 hover:border-primary/40 hover:bg-neutral-50 dark:hover:bg-neutral-800'
-          ]"
-          @click="isMobileOpen = false"
-        >
-          <!-- User Avatar with Status Indicator -->
-          <div class="relative flex-shrink-0">
-            <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-rose-400 text-white font-extrabold flex items-center justify-center text-sm shadow-sm shadow-primary/20">
-              FJ
-            </div>
-            <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-neutral-900" />
-          </div>
-
-          <!-- User Info -->
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-xs text-neutral-900 dark:text-white truncate group-hover:text-primary transition-colors">
-                Fajri
-              </span>
-              <span class="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-primary/15 text-primary border border-primary/25">
-                OFC
-              </span>
-            </div>
-            <div class="text-[11px] text-neutral-500 dark:text-neutral-400 truncate mt-0.5 flex items-center gap-1">
-              <UIcon name="i-lucide-heart" class="w-3 h-3 text-primary fill-primary" />
-              <span>Oshi: Freya</span>
-            </div>
-          </div>
-
-          <UIcon
-            name="i-lucide-chevron-right"
+        <!-- Logged In: User Profile Card -->
+        <div v-if="user" class="flex items-center gap-2">
+          <NuxtLink
+            to="/profile"
             :class="[
-              'w-4 h-4 transition-transform group-hover:translate-x-0.5',
-              isRouteActive('/profile') ? 'text-primary' : 'text-neutral-400 group-hover:text-primary'
+              'flex items-center gap-3 p-2.5 rounded-2xl transition-all border group flex-1 min-w-0',
+              isRouteActive('/profile')
+                ? 'bg-primary/10 border-primary/40 text-primary shadow-xs'
+                : 'bg-white dark:bg-neutral-800/90 border-neutral-200 dark:border-neutral-700/60 hover:border-primary/40 hover:bg-neutral-50 dark:hover:bg-neutral-800'
             ]"
+            @click="isMobileOpen = false"
+          >
+            <!-- User Avatar with Status Indicator -->
+            <div class="relative flex-shrink-0">
+              <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-rose-400 text-white font-extrabold flex items-center justify-center text-sm shadow-sm shadow-primary/20 overflow-hidden">
+                <img v-if="userAvatar" :src="userAvatar" alt="Avatar" class="w-full h-full object-cover" />
+                <span v-else>{{ userInitials }}</span>
+              </div>
+              <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-neutral-900" />
+            </div>
+
+            <!-- User Info -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-xs text-neutral-900 dark:text-white truncate group-hover:text-primary transition-colors">
+                  {{ user.name || 'Pengguna' }}
+                </span>
+              </div>
+              <div class="text-[11px] text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
+                {{ user.email }}
+              </div>
+            </div>
+          </NuxtLink>
+
+          <UButton
+            icon="i-lucide-log-out"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            aria-label="Logout"
+            title="Keluar"
+            class="text-neutral-400 hover:text-red-500 flex-shrink-0"
+            @click="handleLogout"
           />
-        </NuxtLink>
+        </div>
+
+        <!-- Logged Out: Guest Card -->
+        <div v-else class="p-3 rounded-2xl bg-white dark:bg-neutral-800/90 border border-neutral-200 dark:border-neutral-700/60 space-y-2">
+          <div class="text-xs text-neutral-600 dark:text-neutral-400 leading-snug">
+            Masuk ke akun Anda untuk menikmati fitur lengkap portal.
+          </div>
+          <NuxtLink
+            to="/login"
+            class="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold text-xs shadow-xs transition-colors w-full text-center"
+            @click="isMobileOpen = false"
+          >
+            <UIcon name="i-lucide-log-in" class="w-4 h-4" />
+            <span>Masuk / Daftar</span>
+          </NuxtLink>
+        </div>
       </div>
     </aside>
 
@@ -355,7 +391,7 @@ const isRouteActive = (to: string) => {
               <div class="w-5 h-5 rounded-md bg-primary flex items-center justify-center text-white text-[10px] font-bold">
                 J
               </div>
-              <span class="font-bold text-neutral-700 dark:text-neutral-300">Theater JKT48 &bull; Unofficial Fansite</span>
+              <span class="font-bold text-neutral-700 dark:text-neutral-300">Theater JKT48</span>
             </div>
             <div class="flex items-center gap-4 flex-wrap text-xs">
               <NuxtLink to="/" class="hover:text-primary transition-colors">Home</NuxtLink>
