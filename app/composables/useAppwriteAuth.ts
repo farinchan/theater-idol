@@ -196,8 +196,16 @@ export const useAppwriteAuth = () => {
     }
   }
 
+  // Check if current user has 'admin' label
+  const isAdmin = computed(() => {
+    if (!user.value) return false
+    const labels = user.value.labels || []
+    return Array.isArray(labels) && labels.some((l: string) => l.toLowerCase() === 'admin')
+  })
+
   return {
     user,
+    isAdmin,
     isLoading,
     isInitialized,
     authError,

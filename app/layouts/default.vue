@@ -57,7 +57,16 @@ const isRouteActive = (to: string) => {
 }
 
 const { appName } = useAppName()
-const { user, logout } = useAppwriteAuth()
+const { user, logout, isAdmin } = useAppwriteAuth()
+
+const adminNavItems = [
+  {
+    label: 'Management Show',
+    to: '/admin/shows',
+    icon: 'i-lucide-calendar-cog',
+    description: 'Kelola jadwal & data pertunjukan'
+  }
+]
 
 const userAvatar = computed(() => user.value?.prefs?.avatar || '')
 
@@ -270,6 +279,58 @@ const handleLogout = async () => {
                 v-if="item.badge"
                 :color="isRouteActive(item.to) ? 'neutral' : 'primary'"
                 :variant="isRouteActive(item.to) ? 'subtle' : 'solid'"
+                size="xs"
+                class="text-[10px] font-bold"
+              >
+                {{ item.badge }}
+              </UBadge>
+            </NuxtLink>
+          </nav>
+        </div>
+
+        <!-- Admin Menu (Hanya terbuka untuk user yang login dan memiliki label admin) -->
+        <div v-if="user && isAdmin">
+          <div class="px-3 mb-2 text-[11px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
+            <UIcon name="i-lucide-shield-check" class="w-3.5 h-3.5 text-amber-500" />
+            <span>Menu Admin</span>
+          </div>
+          <nav class="space-y-1.5">
+            <NuxtLink
+              v-for="item in adminNavItems"
+              :key="item.label"
+              :to="item.to"
+              :class="[
+                'flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group',
+                isRouteActive(item.to)
+                  ? 'bg-primary text-white shadow-md shadow-primary/30'
+                  : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-primary'
+              ]"
+              @click="isMobileOpen = false"
+            >
+              <div class="flex items-center gap-3">
+                <UIcon
+                  :name="item.icon"
+                  :class="[
+                    'w-5 h-5 transition-colors',
+                    isRouteActive(item.to) ? 'text-white' : 'text-amber-500 group-hover:text-primary'
+                  ]"
+                />
+                <div>
+                  <div class="leading-none">{{ item.label }}</div>
+                  <div
+                    :class="[
+                      'text-[10px] mt-1 font-normal',
+                      isRouteActive(item.to) ? 'text-white/80' : 'text-neutral-400'
+                    ]"
+                  >
+                    {{ item.description }}
+                  </div>
+                </div>
+              </div>
+              <UBadge
+                v-if="item.badge"
+                color="warning"
+                variant="subtle"
                 size="xs"
                 class="text-[10px] font-bold"
               >
