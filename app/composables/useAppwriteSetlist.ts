@@ -1,4 +1,4 @@
-import { databases, storage, ID } from '~/appwrite'
+import { tablesDB, databases, storage, ID } from '~/appwrite'
 
 export interface SetlistItem {
   $id?: string
@@ -48,7 +48,8 @@ const defaultSetlists: SetlistItem[] = [
 export const useAppwriteSetlist = () => {
   const config = useRuntimeConfig()
   const dbId = computed(() => (config.public.appwriteDatabaseId as string) || 'theater-db')
-  const collectionId = computed(() => (config.public.appwriteCollectionSetlistId as string) || 'setlists')
+  const tableId = computed(() => (config.public.appwriteTableSetlistId as string) || (config.public.appwriteCollectionSetlistId as string) || 'setlists')
+  const collectionId = computed(() => (config.public.appwriteCollectionSetlistId as string) || tableId.value)
   const bucketId = computed(() => (config.public.appwriteBucketId as string) || 'setlist-photos')
 
   const setlists = useState<SetlistItem[]>('appwrite_setlists', () => [])
@@ -80,7 +81,7 @@ export const useAppwriteSetlist = () => {
     }
   }
 
-  // Fetch setlists from Appwrite Database
+  // Fetch setlists from Appwrite TablesDB (with Databases fallback)
   const fetchSetlists = async () => {
     if (!import.meta.client) return
     isLoading.value = true
@@ -88,27 +89,52 @@ export const useAppwriteSetlist = () => {
     appwriteNotice.value = null
 
     try {
-      const res = await databases.listDocuments(dbId.value, collectionId.value)
-      const mapped: SetlistItem[] = res.documents.map((doc: any) => ({
-        $id: doc.$id,
-        id: doc.$id,
-        title_id: doc.title_id || doc.title || '',
-        title_jp: doc.title_jp || doc.originalTitle || '',
-        image_url: doc.image_url || doc.imageUrl || '',
-        file_id: doc.file_id || '',
-        $createdAt: doc.$createdAt
-      }))
+      // 1. Try Appwrite TablesDB first
+      try {
+        const res = await tablesDB.listRows(dbId.value, tableId.value)
+        const mapped: SetlistItem[] = (res.rows || []).map((row: any) => ({
+          $id: row.$id,
+          id: row.$id,
+          title_id: row.title_id || row.title || '',
+          title_jp: row.title_jp || row.originalTitle || '',
+          image_url: row.image_url || row.imageUrl || '',
+          file_id: row.file_id || '',
+          $createdAt: row.$createdAt
+        }))
 
-      setlists.value = mapped
-      saveLocalCache(mapped)
+        setlists.value = mapped
+        saveLocalCache(mapped)
+        return
+      } catch (tablesErr: any) {
+        // If not found in TablesDB, try classic Databases Documents as fallback
+        try {
+          const docRes = await databases.listDocuments(dbId.value, collectionId.value)
+          const mapped: SetlistItem[] = docRes.documents.map((doc: any) => ({
+            $id: doc.$id,
+            id: doc.$id,
+            title_id: doc.title_id || doc.title || '',
+            title_jp: doc.title_jp || doc.originalTitle || '',
+            image_url: doc.image_url || doc.imageUrl || '',
+            file_id: doc.file_id || '',
+            $createdAt: doc.$createdAt
+          }))
+
+          setlists.value = mapped
+          saveLocalCache(mapped)
+          return
+        } catch {
+          // Rethrow the primary TablesDB error to handle below
+          throw tablesErr
+        }
+      }
     } catch (err: any) {
-      // If database or collection does not exist yet (404), use local cache with notice
+      // If table or database does not exist yet (404), use local cache with clear guidance
       const cached = loadLocalCache()
       setlists.value = cached
       if (err.code === 404) {
-        appwriteNotice.value = `Database atau Collection '${collectionId.value}' belum dibuat di Appwrite Console. Data sementara disimpan secara lokal.`
+        appwriteNotice.value = `Data sementara disimpan secara lokal.`
       } else {
-        appwriteNotice.value = err?.message || 'Gagal memuat data dari Appwrite Database, menggunakan cache lokal.'
+        appwriteNotice.value = err?.message || 'Gagal memuat data, menggunakan cache lokal.'
       }
     } finally {
       isLoading.value = false
@@ -140,7 +166,7 @@ export const useAppwriteSetlist = () => {
     }
   }
 
-  // Create new Setlist in Appwrite Database
+  // Create new Setlist in Appwrite TablesDB
   const createSetlist = async (data: {
     title_id: string
     title_jp: string
@@ -160,7 +186,7 @@ export const useAppwriteSetlist = () => {
         finalFileId = uploadRes.fileId
       }
 
-      const docData = {
+      const rowPayload = {
         title_id: data.title_id.trim(),
         title_jp: data.title_jp.trim(),
         image_url: finalImageUrl,
@@ -168,32 +194,53 @@ export const useAppwriteSetlist = () => {
       }
 
       try {
-        const docRes = await databases.createDocument(
-          dbId.value,
-          collectionId.value,
-          ID.unique(),
-          docData
-        )
+        let createdId = ID.unique()
+        let createdAt = new Date().toISOString()
+        let createdData: any = rowPayload
+
+        try {
+          // Primary: createRow in TablesDB
+          const rowRes = await tablesDB.createRow(
+            dbId.value,
+            tableId.value,
+            createdId,
+            rowPayload
+          )
+          createdId = rowRes.$id
+          createdAt = rowRes.$createdAt
+          createdData = rowRes
+        } catch (tablesErr: any) {
+          // Fallback: createDocument in Databases
+          const docRes = await databases.createDocument(
+            dbId.value,
+            collectionId.value,
+            createdId,
+            rowPayload
+          )
+          createdId = docRes.$id
+          createdAt = docRes.$createdAt
+          createdData = docRes
+        }
 
         const newItem: SetlistItem = {
-          $id: docRes.$id,
-          id: docRes.$id,
-          title_id: docRes.title_id || docData.title_id,
-          title_jp: docRes.title_jp || docData.title_jp,
-          image_url: docRes.image_url || docData.image_url,
-          file_id: docRes.file_id || docData.file_id,
-          $createdAt: docRes.$createdAt
+          $id: createdId,
+          id: createdId,
+          title_id: createdData.title_id || rowPayload.title_id,
+          title_jp: createdData.title_jp || rowPayload.title_jp,
+          image_url: createdData.image_url || rowPayload.image_url,
+          file_id: createdData.file_id || rowPayload.file_id,
+          $createdAt: createdAt
         }
 
         setlists.value.unshift(newItem)
         saveLocalCache(setlists.value)
         return { success: true, item: newItem }
       } catch (dbErr: any) {
-        // Fallback local save if database doesn't exist yet
+        // Fallback local save if remote database/table doesn't exist yet
         const localItem: SetlistItem = {
           $id: `local-${Date.now()}`,
           id: `local-${Date.now()}`,
-          ...docData,
+          ...rowPayload,
           $createdAt: new Date().toISOString()
         }
         setlists.value.unshift(localItem)
@@ -208,7 +255,7 @@ export const useAppwriteSetlist = () => {
     }
   }
 
-  // Update existing Setlist
+  // Update existing Setlist in Appwrite TablesDB
   const updateSetlist = async (
     id: string,
     data: {
@@ -240,7 +287,13 @@ export const useAppwriteSetlist = () => {
       }
 
       try {
-        await databases.updateDocument(dbId.value, collectionId.value, id, updatePayload)
+        // Try TablesDB updateRow
+        try {
+          await tablesDB.updateRow(dbId.value, tableId.value, id, updatePayload)
+        } catch {
+          // Fallback to Databases updateDocument
+          await databases.updateDocument(dbId.value, collectionId.value, id, updatePayload)
+        }
       } catch {
         // local fallback
       }
@@ -263,12 +316,18 @@ export const useAppwriteSetlist = () => {
     }
   }
 
-  // Delete Setlist
+  // Delete Setlist in Appwrite TablesDB
   const deleteSetlist = async (id: string, fileId?: string) => {
     isActionLoading.value = true
     try {
       try {
-        await databases.deleteDocument(dbId.value, collectionId.value, id)
+        // Try TablesDB deleteRow
+        try {
+          await tablesDB.deleteRow(dbId.value, tableId.value, id)
+        } catch {
+          // Fallback to Databases deleteDocument
+          await databases.deleteDocument(dbId.value, collectionId.value, id)
+        }
       } catch {
         // ignore if not in remote DB
       }
@@ -302,6 +361,7 @@ export const useAppwriteSetlist = () => {
     updateSetlist,
     deleteSetlist,
     dbId,
+    tableId,
     collectionId,
     bucketId
   }

@@ -11,7 +11,15 @@ const isDark = computed({
   }
 })
 
-const navItems = [
+interface NavItem {
+  label: string
+  to: string
+  icon: string
+  badge?: string | null
+  description: string
+}
+
+const navItems: NavItem[] = [
   {
     label: 'Home',
     to: '/',
@@ -42,7 +50,7 @@ const navItems = [
   }
 ]
 
-const otherNavItems = [
+const otherNavItems: NavItem[] = [
   {
     label: 'Pembayaran',
     to: '/pembayaran',
@@ -59,11 +67,12 @@ const isRouteActive = (to: string) => {
 const { appName } = useAppName()
 const { user, logout, isAdmin } = useAppwriteAuth()
 
-const adminNavItems = [
+const adminNavItems: NavItem[] = [
   {
     label: 'Management Show',
     to: '/admin/shows',
     icon: 'i-lucide-calendar-cog',
+    badge: null,
     description: 'Kelola jadwal & data pertunjukan'
   }
 ]
@@ -90,22 +99,6 @@ const handleLogout = async () => {
       </NuxtLink>
 
       <div class="flex items-center gap-2">
-        <NuxtLink
-          v-if="user"
-          to="/profile"
-          class="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-rose-400 text-white font-bold flex items-center justify-center text-xs shadow-sm overflow-hidden"
-          aria-label="Profil Akun"
-        >
-          <img v-if="userAvatar" :src="userAvatar" alt="Avatar" class="w-full h-full object-cover" />
-          <span v-else>{{ userInitials }}</span>
-        </NuxtLink>
-        <NuxtLink
-          v-else
-          to="/login"
-          class="px-2.5 py-1 rounded-lg bg-primary text-white font-bold text-xs shadow-xs"
-        >
-          Masuk
-        </NuxtLink>
         <UButton
           :icon="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"
           color="neutral"
@@ -420,13 +413,14 @@ const handleLogout = async () => {
           />
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-3">
           <UButton
             :icon="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"
             color="neutral"
             variant="ghost"
             size="md"
             aria-label="Toggle Dark Mode"
+            class="cursor-pointer"
             @click="isDark = !isDark"
           />
         </div>

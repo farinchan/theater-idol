@@ -9,9 +9,11 @@ export default defineNuxtConfig({
       appName: process.env.APP_NAME || 'Pekerja48',
       appwriteEndpoint: process.env.APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1',
       appwriteProjectId: process.env.APPWRITE_PROJECT_ID || '6a869957002a80bc5060',
-      appwriteDatabaseId: process.env.APPWRITE_DATABASE_ID || 'theater-db',
-      appwriteCollectionSetlistId: process.env.APPWRITE_COLLECTION_SETLIST_ID || 'setlists',
-      appwriteBucketId: process.env.APPWRITE_BUCKET_ID || 'setlist-photos'
+      appwriteDatabaseId: process.env.APPWRITE_DATABASE_ID || '6aba9a7300316352ddb0',
+      appwriteTableSetlistId: process.env.APPWRITE_TABLE_SETLIST_ID || process.env.APPWRITE_COLLECTION_SETLIST_ID || '6abacdde002ba14e3aa8',
+      appwriteCollectionSetlistId: process.env.APPWRITE_COLLECTION_SETLIST_ID || process.env.APPWRITE_TABLE_SETLIST_ID || '6abacdde002ba14e3aa8',
+      appwriteBucketId: process.env.APPWRITE_BUCKET_ID || 'setlist-photos',
+      appwriteTableShowId: process.env.APPWRITE_TABLE_SHOW_ID || 'shows'
     }
   }
 })

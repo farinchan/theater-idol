@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import type { SetlistItem } from '~/composables/useAppwriteSetlist'
+import type { ShowItem } from '~/composables/useAppwriteShow'
 
 const router = useRouter()
 const { user, isAdmin, isLoading: isAuthLoading, isInitialized } = useAppwriteAuth()
+
+// Composable Setlist (Tab 1)
 const {
   setlists,
   isLoading: isSetlistsLoading,
@@ -14,11 +17,25 @@ const {
   updateSetlist,
   deleteSetlist,
   dbId,
-  collectionId,
+  tableId,
   bucketId
 } = useAppwriteSetlist()
 
-// Tab Navigation: Tab 1 = Setlist (first), Tab 2 = Jadwal Pertunjukan
+// Composable Show (Tab 2)
+const {
+  shows,
+  isLoading: isShowsLoading,
+  isActionLoading: isShowActionLoading,
+  appwriteError: showAppwriteError,
+  appwriteNotice: showAppwriteNotice,
+  fetchShows,
+  createShow,
+  updateShow,
+  deleteShow,
+  showTableId
+} = useAppwriteShow()
+
+// Tab Navigation: Tab 1 = Setlist, Tab 2 = Jadwal Pertunjukan
 const activeTab = ref<'setlists' | 'shows'>('setlists')
 
 // ==========================================
@@ -37,7 +54,7 @@ const editingSetlistFileId = ref<string | undefined>(undefined)
 const isDeleteSetlistModalOpen = ref(false)
 const setlistToDelete = ref<SetlistItem | null>(null)
 
-// Form Setlist: "image, judul indonesia, lalu judul jepang gitu aja"
+// Form Setlist: Image, Judul Indonesia, Judul Jepang
 const setlistForm = reactive({
   title_id: '',
   title_jp: '',
@@ -47,27 +64,45 @@ const setlistForm = reactive({
 const setlistFileInputRef = ref<HTMLInputElement | null>(null)
 const isSetlistDragging = ref(false)
 
+const openCreateSetlistModal = () => {
+  setlistModalMode.value = 'create'
+  editingSetlistId.value = null
+  editingSetlistFileId.value = undefined
+  setlistForm.title_id = ''
+  setlistForm.title_jp = ''
+  setlistForm.image_preview = ''
+  setlistForm.file = null
+  isSetlistModalOpen.value = true
+}
+
+const openEditSetlistModal = (item: SetlistItem) => {
+  setlistModalMode.value = 'edit'
+  editingSetlistId.value = item.$id || String(item.id)
+  editingSetlistFileId.value = item.file_id
+  setlistForm.title_id = item.title_id
+  setlistForm.title_jp = item.title_jp
+  setlistForm.image_preview = item.image_url
+  setlistForm.file = null
+  isSetlistModalOpen.value = true
+}
+
 const handleSetlistFileChange = (e: Event) => {
   const target = e.target as HTMLInputElement
   const file = target.files?.[0]
   if (file) {
-    processSetlistImageFile(file)
+    processSetlistPhotoFile(file)
   }
 }
 
 const handleSetlistDrop = (e: DragEvent) => {
   isSetlistDragging.value = false
   const file = e.dataTransfer?.files?.[0]
-  if (file) {
-    processSetlistImageFile(file)
+  if (file && file.type.startsWith('image/')) {
+    processSetlistPhotoFile(file)
   }
 }
 
-const processSetlistImageFile = (file: File) => {
-  if (!file.type.startsWith('image/')) {
-    setlistFeedback.value = { type: 'error', text: 'Berkas harus berupa gambar (JPG, PNG, WebP).' }
-    return
-  }
+const processSetlistPhotoFile = (file: File) => {
   setlistForm.file = file
   const reader = new FileReader()
   reader.onload = (e) => {
@@ -88,41 +123,13 @@ const removeSetlistPhoto = () => {
   }
 }
 
-const openCreateSetlistModal = () => {
-  setlistModalMode.value = 'create'
-  editingSetlistId.value = null
-  editingSetlistFileId.value = undefined
-  setlistForm.title_id = ''
-  setlistForm.title_jp = ''
-  setlistForm.image_preview = ''
-  setlistForm.file = null
-  if (setlistFileInputRef.value) {
-    setlistFileInputRef.value.value = ''
-  }
-  isSetlistModalOpen.value = true
-}
-
-const openEditSetlistModal = (item: SetlistItem) => {
-  setlistModalMode.value = 'edit'
-  editingSetlistId.value = item.$id || String(item.id)
-  editingSetlistFileId.value = item.file_id
-  setlistForm.title_id = item.title_id
-  setlistForm.title_jp = item.title_jp
-  setlistForm.image_preview = item.image_url
-  setlistForm.file = null
-  if (setlistFileInputRef.value) {
-    setlistFileInputRef.value.value = ''
-  }
-  isSetlistModalOpen.value = true
-}
-
 const handleSaveSetlist = async () => {
   if (!setlistForm.title_id.trim()) {
-    setlistFeedback.value = { type: 'error', text: 'Judul Indonesia tidak boleh kosong.' }
+    setlistFeedback.value = { type: 'error', text: 'Judul Indonesia wajib diisi.' }
     return
   }
   if (!setlistForm.title_jp.trim()) {
-    setlistFeedback.value = { type: 'error', text: 'Judul Jepang tidak boleh kosong.' }
+    setlistFeedback.value = { type: 'error', text: 'Judul Jepang wajib diisi.' }
     return
   }
 
@@ -131,24 +138,23 @@ const handleSaveSetlist = async () => {
       title_id: setlistForm.title_id,
       title_jp: setlistForm.title_jp,
       file: setlistForm.file || undefined,
-      image_url: setlistForm.image_preview || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
+      image_url: setlistForm.image_preview || undefined
     })
 
     if (res.success) {
       setlistFeedback.value = {
         type: 'success',
-        text: `Setlist "${setlistForm.title_id}" berhasil disimpan ke Appwrite!`
+        text: `Setlist "${setlistForm.title_id}" berhasil ditambahkan!`
       }
-      isSetlistModalOpen.value = false
     } else {
-      setlistFeedback.value = { type: 'error', text: res.error || 'Gagal menyimpan ke Appwrite.' }
+      setlistFeedback.value = { type: 'error', text: res.error || 'Gagal menambahkan setlist.' }
     }
   } else if (setlistModalMode.value === 'edit' && editingSetlistId.value) {
     const res = await updateSetlist(editingSetlistId.value, {
       title_id: setlistForm.title_id,
       title_jp: setlistForm.title_jp,
       file: setlistForm.file || undefined,
-      image_url: setlistForm.image_preview,
+      image_url: setlistForm.image_preview || undefined,
       file_id: editingSetlistFileId.value
     })
 
@@ -157,15 +163,15 @@ const handleSaveSetlist = async () => {
         type: 'success',
         text: `Setlist "${setlistForm.title_id}" berhasil diperbarui!`
       }
-      isSetlistModalOpen.value = false
     } else {
       setlistFeedback.value = { type: 'error', text: res.error || 'Gagal memperbarui setlist.' }
     }
   }
 
+  isSetlistModalOpen.value = false
   setTimeout(() => {
     setlistFeedback.value = null
-  }, 4000)
+  }, 3500)
 }
 
 const confirmDeleteSetlist = (item: SetlistItem) => {
@@ -181,7 +187,7 @@ const handleDeleteSetlist = async () => {
 
   const res = await deleteSetlist(targetId, fileId)
   if (res.success) {
-    setlistFeedback.value = { type: 'success', text: `Setlist "${title}" berhasil dihapus dari Appwrite.` }
+    setlistFeedback.value = { type: 'success', text: `Setlist "${title}" berhasil dihapus.` }
   } else {
     setlistFeedback.value = { type: 'error', text: res.error || 'Gagal menghapus setlist.' }
   }
@@ -202,82 +208,16 @@ const filteredSetlists = computed(() => {
 })
 
 // ==========================================
-// TAB 2: JADWAL SHOW STATE & METHODS
+// TAB 2: SHOW STATE & METHODS (APPWRITE)
+// Relasikan dengan: Setlist, Tanggal, Waktu, Deskripsi Ringkas, Lineup Member
 // ==========================================
-interface ShowItem {
-  id: number | string
-  title: string
-  originalTitle: string
-  category: string
-  date: string
-  time: string
-  type: string
-  status: string
-  statusColor: 'primary' | 'warning' | 'success' | 'neutral'
-  description: string
-  lineup: string[]
-}
-
-const defaultShows: ShowItem[] = [
-  {
-    id: 1,
-    title: 'Cara Meminum Ramune',
-    originalTitle: 'Ramune no Nomikata',
-    category: 'Regular Show',
-    date: 'Jumat, 3 Oktober 2026',
-    time: '19:00 WIB',
-    type: 'Regular Evening Show',
-    status: 'Jadwal Terkonfirmasi',
-    statusColor: 'primary',
-    description: 'Pertunjukan penuh energi dan kesegaran masa muda khas setlist Ramune no Nomikata.',
-    lineup: [
-      'Freya Jayawardana', 'Angelina Christy', 'Shania Gracia', 'Azizi Asadel',
-      'Marsha Lenathea', 'Feni Fitriyanti', 'Gita Sekar', 'Mutiara Azzahra'
-    ]
-  },
-  {
-    id: 2,
-    title: 'Aturan Anti Cinta',
-    originalTitle: 'Renai Kinshi Jourei',
-    category: 'Regular Show',
-    date: 'Sabtu, 4 Oktober 2026',
-    time: '14:00 WIB',
-    type: 'Matinee Afternoon Show',
-    status: 'Show Siang',
-    statusColor: 'warning',
-    description: 'Setlist legendaris yang membawakan lagu-lagu nostalgia.',
-    lineup: [
-      'Gita Sekar', 'Mutiara Azzahra', 'Marsha Lenathea', 'Feni Fitriyanti',
-      'Kathrina Irene', 'Jessi', 'Lulu Salsabila', 'Indah Cahya'
-    ]
-  },
-  {
-    id: 3,
-    title: 'Aturan Anti Cinta',
-    originalTitle: 'Renai Kinshi Jourei',
-    category: 'Regular Show',
-    date: 'Sabtu, 4 Oktober 2026',
-    time: '19:00 WIB',
-    type: 'Evening Show',
-    status: 'Show Malam',
-    statusColor: 'primary',
-    description: 'Pertunjukan malam penuh semangat dengan antusiasme penonton di teater.',
-    lineup: [
-      'Freya Jayawardana', 'Christy', 'Gracia', 'Zee',
-      'Marsha', 'Feni', 'Gita', 'Muthe'
-    ]
-  }
-]
-
-const shows = ref<ShowItem[]>([])
 const searchShowQuery = ref('')
-const selectedCategory = ref('Semua')
 const showFeedback = ref<{ type: 'success' | 'error'; text: string } | null>(null)
 
 // Modal Add/Edit Show
 const isShowModalOpen = ref(false)
 const showModalMode = ref<'create' | 'edit'>('create')
-const editingShowId = ref<number | string | null>(null)
+const editingShowId = ref<string | null>(null)
 
 // Modal Delete Show
 const isDeleteShowModalOpen = ref(false)
@@ -287,69 +227,134 @@ const showToDelete = ref<ShowItem | null>(null)
 const isLineupModalOpen = ref(false)
 const selectedShowForLineup = ref<ShowItem | null>(null)
 
+// Form Show
 const showForm = reactive({
-  title: '',
-  originalTitle: '',
-  category: 'Regular Show',
+  setlist_id: '',
   date: '',
-  time: '19:00 WIB',
-  type: 'Regular Evening Show',
-  status: 'Jadwal Terkonfirmasi',
+  time: '19:00',
   description: '',
   lineupText: ''
 })
 
-const categories = ['Semua', 'Regular Show', 'Spesial Seitansai', 'Trainee Stage', 'Special Event']
-const categoryOptions = ['Regular Show', 'Spesial Seitansai', 'Trainee Stage', 'Special Event']
+// Helper: Format tanggal ke Bahasa Indonesia (Contoh: "Minggu, 4 Oktober 2026")
+const formatIndonesianDate = (dateVal?: string): string => {
+  if (!dateVal) return '-'
+  try {
+    const d = new Date(dateVal)
+    if (isNaN(d.getTime())) return dateVal
+    return new Intl.DateTimeFormat('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    }).format(d)
+  } catch {
+    return dateVal
+  }
+}
 
-const loadShows = () => {
-  if (import.meta.client) {
-    const saved = localStorage.getItem('admin_managed_shows')
-    if (saved) {
-      try {
-        shows.value = JSON.parse(saved)
-        return
-      } catch {
-        // fallback
+// Helper: Format waktu ke WIB (Contoh: "19:00 WIB")
+const formatIndonesianTime = (timeVal?: string, dateVal?: string): string => {
+  if (timeVal && timeVal.includes(':')) {
+    return `${timeVal.slice(0, 5)} WIB`
+  }
+  if (dateVal) {
+    try {
+      const d = new Date(dateVal)
+      if (!isNaN(d.getTime())) {
+        const h = String(d.getHours()).padStart(2, '0')
+        const m = String(d.getMinutes()).padStart(2, '0')
+        return `${h}:${m} WIB`
       }
+    } catch {}
+  }
+  return timeVal || '19:00 WIB'
+}
+
+// Helper: Ekstrak YYYY-MM-DD untuk input date HTML
+const getDateInputValue = (dateVal?: string): string => {
+  if (!dateVal) return ''
+  try {
+    const d = new Date(dateVal)
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
     }
-  }
-  shows.value = [...defaultShows]
+  } catch {}
+  return dateVal.slice(0, 10)
 }
 
-const saveShows = () => {
-  if (import.meta.client) {
-    localStorage.setItem('admin_managed_shows', JSON.stringify(shows.value))
+// Helper: Ekstrak HH:mm untuk input time HTML
+const getTimeInputValue = (timeVal?: string, dateVal?: string): string => {
+  if (timeVal && timeVal.includes(':')) {
+    return timeVal.slice(0, 5)
   }
+  if (dateVal) {
+    try {
+      const d = new Date(dateVal)
+      if (!isNaN(d.getTime())) {
+        const h = String(d.getHours()).padStart(2, '0')
+        const m = String(d.getMinutes()).padStart(2, '0')
+        return `${h}:${m}`
+      }
+    } catch {}
+  }
+  return '19:00'
 }
 
-onMounted(() => {
-  loadShows()
-  fetchSetlists()
+// Helper: ambil data setlist yang berelasi
+const getRelatedSetlist = (setlistId?: string): SetlistItem | null => {
+  if (!setlistId) return null
+  return setlists.value.find(s => s.$id === setlistId || String(s.id) === String(setlistId)) || null
+}
+
+// Helper: parse string lineup ke array
+const getLineupList = (lineupStr?: string): string[] => {
+  if (!lineupStr) return []
+  return lineupStr.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+// Setlist terpilih pada form modal
+const selectedFormSetlist = computed(() => {
+  return getRelatedSetlist(showForm.setlist_id)
 })
 
 const filteredShows = computed(() => {
   return shows.value.filter((show) => {
-    const matchCategory = selectedCategory.value === 'Semua' || show.category === selectedCategory.value
-    const matchSearch =
-      searchShowQuery.value.trim() === '' ||
-      show.title.toLowerCase().includes(searchShowQuery.value.toLowerCase()) ||
-      show.originalTitle.toLowerCase().includes(searchShowQuery.value.toLowerCase()) ||
-      show.date.toLowerCase().includes(searchShowQuery.value.toLowerCase())
-    return matchCategory && matchSearch
+    const related = getRelatedSetlist(show.setlist_id)
+    const titleId = related?.title_id || ''
+    const titleJp = related?.title_jp || ''
+    const formattedDate = formatIndonesianDate(show.date).toLowerCase()
+    const query = searchShowQuery.value.trim().toLowerCase()
+
+    if (!query) return true
+
+    return (
+      titleId.toLowerCase().includes(query) ||
+      titleJp.toLowerCase().includes(query) ||
+      show.date.toLowerCase().includes(query) ||
+      formattedDate.includes(query) ||
+      show.time.toLowerCase().includes(query) ||
+      (show.description && show.description.toLowerCase().includes(query)) ||
+      (show.lineup && show.lineup.toLowerCase().includes(query))
+    )
   })
 })
 
 const openCreateShowModal = () => {
   showModalMode.value = 'create'
   editingShowId.value = null
-  showForm.title = ''
-  showForm.originalTitle = ''
-  showForm.category = 'Regular Show'
-  showForm.date = ''
-  showForm.time = '19:00 WIB'
-  showForm.type = 'Regular Evening Show'
-  showForm.status = 'Jadwal Terkonfirmasi'
+  showForm.setlist_id = setlists.value[0]?.$id || String(setlists.value[0]?.id || '')
+
+  // Set default ke hari ini (YYYY-MM-DD)
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  showForm.date = `${year}-${month}-${day}`
+  showForm.time = '19:00'
   showForm.description = ''
   showForm.lineupText = ''
   isShowModalOpen.value = true
@@ -357,72 +362,61 @@ const openCreateShowModal = () => {
 
 const openEditShowModal = (show: ShowItem) => {
   showModalMode.value = 'edit'
-  editingShowId.value = show.id
-  showForm.title = show.title
-  showForm.originalTitle = show.originalTitle
-  showForm.category = show.category
-  showForm.date = show.date
-  showForm.time = show.time
-  showForm.type = show.type
-  showForm.status = show.status
-  showForm.description = show.description
-  showForm.lineupText = show.lineup.join(', ')
+  editingShowId.value = show.$id || String(show.id)
+  showForm.setlist_id = show.setlist_id
+  showForm.date = getDateInputValue(show.date)
+  showForm.time = getTimeInputValue(show.time, show.date)
+  showForm.description = show.description || ''
+  showForm.lineupText = show.lineup || ''
   isShowModalOpen.value = true
 }
 
-const handleSaveShow = () => {
-  if (!showForm.title.trim() || !showForm.date.trim()) {
-    showFeedback.value = { type: 'error', text: 'Judul dan tanggal pertunjukan wajib diisi.' }
+const handleSaveShow = async () => {
+  if (!showForm.setlist_id) {
+    showFeedback.value = { type: 'error', text: 'Pilih setlist terlebih dahulu.' }
+    return
+  }
+  if (!showForm.date.trim()) {
+    showFeedback.value = { type: 'error', text: 'Tanggal pertunjukan wajib diisi.' }
     return
   }
 
-  const parsedLineup = showForm.lineupText
-    .split(',')
-    .map(name => name.trim())
-    .filter(Boolean)
-
-  let statusColor: 'primary' | 'warning' | 'success' | 'neutral' = 'primary'
-  if (showForm.category === 'Spesial Seitansai') statusColor = 'success'
-  else if (showForm.status.toLowerCase().includes('siang')) statusColor = 'warning'
-  else if (showForm.category === 'Trainee Stage') statusColor = 'neutral'
-
   if (showModalMode.value === 'create') {
-    const newShow: ShowItem = {
-      id: Date.now(),
-      title: showForm.title.trim(),
-      originalTitle: showForm.originalTitle.trim() || showForm.title.trim(),
-      category: showForm.category,
+    const res = await createShow({
+      setlist_id: showForm.setlist_id,
       date: showForm.date.trim(),
       time: showForm.time.trim() || '19:00 WIB',
-      type: showForm.type.trim() || 'Evening Show',
-      status: showForm.status.trim() || 'Jadwal Terkonfirmasi',
-      statusColor,
-      description: showForm.description.trim() || 'Pertunjukan teater mendatang.',
-      lineup: parsedLineup.length ? parsedLineup : ['Lineup menyusul']
-    }
-    shows.value.unshift(newShow)
-    showFeedback.value = { type: 'success', text: `Pertunjukan "${newShow.title}" berhasil ditambahkan!` }
-  } else if (showModalMode.value === 'edit' && editingShowId.value !== null) {
-    const idx = shows.value.findIndex(s => s.id === editingShowId.value)
-    if (idx !== -1) {
-      shows.value[idx] = {
-        ...shows.value[idx],
-        title: showForm.title.trim(),
-        originalTitle: showForm.originalTitle.trim() || showForm.title.trim(),
-        category: showForm.category,
-        date: showForm.date.trim(),
-        time: showForm.time.trim(),
-        type: showForm.type.trim(),
-        status: showForm.status.trim(),
-        statusColor,
-        description: showForm.description.trim(),
-        lineup: parsedLineup.length ? parsedLineup : shows.value[idx].lineup
+      description: showForm.description.trim(),
+      lineup: showForm.lineupText.trim()
+    })
+
+    if (res.success) {
+      showFeedback.value = {
+        type: 'success',
+        text: 'Jadwal pertunjukan berhasil ditambahkan!'
       }
-      showFeedback.value = { type: 'success', text: `Pertunjukan "${showForm.title}" berhasil diperbarui!` }
+    } else {
+      showFeedback.value = { type: 'error', text: res.error || 'Gagal menambahkan show.' }
+    }
+  } else if (showModalMode.value === 'edit' && editingShowId.value) {
+    const res = await updateShow(editingShowId.value, {
+      setlist_id: showForm.setlist_id,
+      date: showForm.date.trim(),
+      time: showForm.time.trim(),
+      description: showForm.description.trim(),
+      lineup: showForm.lineupText.trim()
+    })
+
+    if (res.success) {
+      showFeedback.value = {
+        type: 'success',
+        text: 'Jadwal pertunjukan berhasil diperbarui!'
+      }
+    } else {
+      showFeedback.value = { type: 'error', text: res.error || 'Gagal memperbarui show.' }
     }
   }
 
-  saveShows()
   isShowModalOpen.value = false
   setTimeout(() => { showFeedback.value = null }, 3500)
 }
@@ -432,11 +426,17 @@ const confirmDeleteShow = (show: ShowItem) => {
   isDeleteShowModalOpen.value = true
 }
 
-const handleDeleteShow = () => {
+const handleDeleteShow = async () => {
   if (!showToDelete.value) return
-  shows.value = shows.value.filter(s => s.id !== showToDelete.value?.id)
-  saveShows()
-  showFeedback.value = { type: 'success', text: `Pertunjukan "${showToDelete.value.title}" telah dihapus.` }
+  const targetId = showToDelete.value.$id || String(showToDelete.value.id)
+  const res = await deleteShow(targetId)
+
+  if (res.success) {
+    showFeedback.value = { type: 'success', text: 'Jadwal pertunjukan berhasil dihapus.' }
+  } else {
+    showFeedback.value = { type: 'error', text: res.error || 'Gagal menghapus pertunjukan.' }
+  }
+
   isDeleteShowModalOpen.value = false
   showToDelete.value = null
   setTimeout(() => { showFeedback.value = null }, 3500)
@@ -446,500 +446,433 @@ const viewLineup = (show: ShowItem) => {
   selectedShowForLineup.value = show
   isLineupModalOpen.value = true
 }
+
+// Inisialisasi data
+onMounted(() => {
+  fetchSetlists()
+  fetchShows()
+})
+
+// Proteksi Halaman Admin
+watch([isAuthLoading, isInitialized, user], () => {
+  if (isInitialized.value && !isAuthLoading.value) {
+    if (!user.value || !isAdmin.value) {
+      router.replace('/')
+    }
+  }
+}, { immediate: true })
 </script>
 
 <template>
-  <div class="p-4 sm:p-6 lg:p-8 space-y-8 w-full max-w-7xl mx-auto">
-    <!-- State 1: Verifikasi Sesi Sedang Berjalan -->
-    <div v-if="isAuthLoading && !isInitialized" class="py-20 text-center space-y-3">
-      <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-primary mx-auto" />
-      <p class="text-sm text-neutral-500">Memverifikasi hak akses administrator...</p>
-    </div>
-
-    <!-- State 2: Belum Login (Guest) -->
-    <div
-      v-else-if="!user"
-      class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-8 sm:p-12 text-center shadow-xs space-y-5"
-    >
-      <div class="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
-        <UIcon name="i-lucide-lock" class="w-8 h-8" />
-      </div>
-
-      <div class="max-w-md mx-auto space-y-2">
-        <h2 class="text-xl font-bold text-neutral-900 dark:text-white">
-          Autentikasi Diperlukan
-        </h2>
-        <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-          Halaman Management Show hanya dapat diakses oleh akun pengelola yang telah masuk dan memiliki label administrator.
+  <div class="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl w-full mx-auto">
+    <!-- Header (Mengikuti style halaman jadwal & stream) -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-6">
+      <div>
+        <div class="inline-flex items-center gap-2 text-xs font-bold text-primary tracking-wide uppercase">
+          <UIcon name="i-lucide-shield-check" class="w-3.5 h-3.5" />
+          Panel Admin
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-black tracking-tight mt-1 flex items-center gap-3">
+          <UIcon name="i-lucide-calendar-cog" class="w-8 h-8 text-primary" />
+          Management Show
+        </h1>
+        <p class="text-neutral-500 dark:text-neutral-400 text-sm mt-1">
+          Kelola daftar setlist teater dan jadwal pertunjukan panggung mendatang.
         </p>
       </div>
 
-      <div class="pt-2">
-        <NuxtLink
-          to="/login"
-          class="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-white font-bold text-xs shadow-sm shadow-primary/25 hover:bg-primary/90 transition-colors"
+      <!-- Tombol Aksi Tambah Sesuai Tab Aktif -->
+      <div v-if="user && isAdmin" class="flex items-center gap-3">
+        <UButton
+          v-if="activeTab === 'setlists'"
+          color="primary"
+          variant="solid"
+          size="md"
+          class="rounded-xl font-bold cursor-pointer shadow-sm shadow-primary/30"
+          @click="openCreateSetlistModal"
         >
-          <UIcon name="i-lucide-log-in" class="w-4 h-4" />
-          <span>Masuk ke Akun</span>
-        </NuxtLink>
+          <template #leading>
+            <UIcon name="i-lucide-plus" class="w-4 h-4" />
+          </template>
+          Tambah Setlist
+        </UButton>
+
+        <UButton
+          v-else
+          color="primary"
+          variant="solid"
+          size="md"
+          class="rounded-xl font-bold cursor-pointer shadow-sm shadow-primary/30"
+          @click="openCreateShowModal"
+        >
+          <template #leading>
+            <UIcon name="i-lucide-plus" class="w-4 h-4" />
+          </template>
+          Tambah Jadwal Show
+        </UButton>
       </div>
     </div>
 
-    <!-- State 3: Login tapi BUKAN Admin (Label tidak ada 'admin') -->
-    <div
-      v-else-if="!isAdmin"
-      class="rounded-3xl border border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/20 p-8 sm:p-12 text-center shadow-xs space-y-5"
-    >
-      <div class="w-16 h-16 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mx-auto">
-        <UIcon name="i-lucide-shield-alert" class="w-8 h-8" />
-      </div>
-
-      <div class="max-w-md mx-auto space-y-2">
-        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/20 uppercase">
-          Akses Ditolak &bull; 403 Forbidden
-        </div>
-        <h2 class="text-2xl font-black text-neutral-900 dark:text-white">
-          Hak Akses Tidak Mencukupi
-        </h2>
-        <p class="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
-          Akun Anda (<strong>{{ user.email }}</strong>) saat ini belum memiliki label <code>admin</code>. Halaman ini hanya dibuka untuk pengelola dengan hak akses admin.
-        </p>
-      </div>
-
-      <div class="pt-3 flex items-center justify-center gap-3">
-        <NuxtLink
-          to="/"
-          class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 font-bold text-xs hover:bg-neutral-300 dark:hover:bg-neutral-700 transition-colors"
-        >
-          <UIcon name="i-lucide-arrow-left" class="w-4 h-4" />
-          <span>Kembali ke Beranda</span>
-        </NuxtLink>
-        <NuxtLink
-          to="/profile"
-          class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-bold text-xs shadow-sm shadow-primary/25 hover:bg-primary/90 transition-colors"
-        >
-          <UIcon name="i-lucide-user" class="w-4 h-4" />
-          <span>Lihat Profil Saya</span>
-        </NuxtLink>
-      </div>
+    <!-- State Loading Autentikasi -->
+    <div v-if="isAuthLoading || !isInitialized" class="flex flex-col items-center justify-center min-h-[40vh] gap-3">
+      <div class="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      <span class="text-xs font-semibold text-neutral-500">Memverifikasi hak akses admin...</span>
     </div>
 
-    <!-- State 4: Autentikasi Berhasil & User adalah Admin -->
-    <div v-else class="space-y-8">
-      <!-- Admin Page Header -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-6">
-        <div>
-          <div class="inline-flex items-center gap-2 text-xs font-bold text-amber-500 tracking-wide uppercase">
-            <UIcon name="i-lucide-shield-check" class="w-4 h-4 text-amber-500" />
-            Area Administrator
-          </div>
-          <h1 class="text-2xl sm:text-3xl font-black tracking-tight mt-1 flex items-center gap-3">
-            <UIcon name="i-lucide-calendar-cog" class="w-8 h-8 text-primary" />
-            Management Show
-          </h1>
-          <p class="text-neutral-500 dark:text-neutral-400 text-sm mt-1">
-            Kelola data setlist (database & storage Appwrite) dan jadwal pertunjukan panggung.
-          </p>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <!-- Button Tambah sesuai tab aktif -->
-          <UButton
-            v-if="activeTab === 'setlists'"
-            color="primary"
-            variant="solid"
-            size="md"
-            class="rounded-xl font-bold cursor-pointer shadow-md shadow-primary/25"
-            @click="openCreateSetlistModal"
-          >
-            <template #leading>
-              <UIcon name="i-lucide-plus" class="w-4 h-4" />
-            </template>
-            Tambah Setlist
-          </UButton>
-
-          <UButton
-            v-else
-            color="primary"
-            variant="solid"
-            size="md"
-            class="rounded-xl font-bold cursor-pointer shadow-md shadow-primary/25"
-            @click="openCreateShowModal"
-          >
-            <template #leading>
-              <UIcon name="i-lucide-plus" class="w-4 h-4" />
-            </template>
-            Tambah Show
-          </UButton>
-        </div>
-      </div>
-
-      <!-- Tab Navigation System: Tab 1 = Setlist, Tab 2 = Jadwal Show -->
-      <div class="space-y-6">
-        <div class="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3 overflow-x-auto">
-          <!-- Tab 1: Setlist (First Tab as requested) -->
+    <!-- Konten Khusus Admin -->
+    <div v-else-if="user && isAdmin" class="space-y-6">
+      <!-- ============================================== -->
+      <!-- TABBAR NAVIGASI: TAB 1 (SETLIST), TAB 2 (SHOW) -->
+      <!-- ============================================== -->
+      <div class="border-b border-neutral-200 dark:border-neutral-800">
+        <div class="flex items-center gap-2 sm:gap-4">
+          <!-- TAB 1: SETLIST -->
           <button
             type="button"
             :class="[
-              'flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap',
+              'flex items-center gap-2.5 px-4 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap',
               activeTab === 'setlists'
-                ? 'bg-primary text-white shadow-sm shadow-primary/25'
-                : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                ? 'border-primary text-primary dark:text-primary'
+                : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
             ]"
             @click="activeTab = 'setlists'"
           >
             <UIcon name="i-lucide-disc-3" class="w-4 h-4" />
-            <span>Setlist</span>
-            <UBadge
-              v-if="setlists.length"
-              :color="activeTab === 'setlists' ? 'neutral' : 'primary'"
-              :variant="activeTab === 'setlists' ? 'subtle' : 'solid'"
-              size="xs"
-              class="ml-1 text-[10px]"
+            <span>Setlist Teater</span>
+            <span
+              class="px-2 py-0.5 rounded-full text-[11px] font-bold"
+              :class="activeTab === 'setlists' ? 'bg-primary/10 text-primary' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'"
             >
               {{ setlists.length }}
-            </UBadge>
+            </span>
           </button>
 
-          <!-- Tab 2: Jadwal Pertunjukan -->
+          <!-- TAB 2: JADWAL SHOW (RELASI SETLIST) -->
           <button
             type="button"
             :class="[
-              'flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap',
+              'flex items-center gap-2.5 px-4 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap',
               activeTab === 'shows'
-                ? 'bg-primary text-white shadow-sm shadow-primary/25'
-                : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                ? 'border-primary text-primary dark:text-primary'
+                : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
             ]"
             @click="activeTab = 'shows'"
           >
             <UIcon name="i-lucide-calendar-days" class="w-4 h-4" />
             <span>Jadwal Pertunjukan</span>
-            <UBadge
-              v-if="shows.length"
-              :color="activeTab === 'shows' ? 'neutral' : 'primary'"
-              :variant="activeTab === 'shows' ? 'subtle' : 'solid'"
-              size="xs"
-              class="ml-1 text-[10px]"
+            <span
+              class="px-2 py-0.5 rounded-full text-[11px] font-bold"
+              :class="activeTab === 'shows' ? 'bg-primary/10 text-primary' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'"
             >
               {{ shows.length }}
-            </UBadge>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ============================================== -->
+      <!-- TAB 1 CONTENT: SETLIST (IMAGE, JUDUL ID, JP)   -->
+      <!-- ============================================== -->
+      <div v-if="activeTab === 'setlists'" class="space-y-6">
+        <!-- Notifikasi Banner Feedback -->
+        <div
+          v-if="setlistFeedback"
+          :class="[
+            'p-4 rounded-2xl border text-xs sm:text-sm font-medium flex items-center justify-between gap-3 transition-all',
+            setlistFeedback.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+              : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
+          ]"
+        >
+          <div class="flex items-center gap-2.5">
+            <UIcon
+              :name="setlistFeedback.type === 'success' ? 'i-lucide-check-circle-2' : 'i-lucide-alert-circle'"
+              class="w-5 h-5 flex-shrink-0"
+            />
+            <span>{{ setlistFeedback.text }}</span>
+          </div>
+          <button type="button" class="text-neutral-400 hover:text-neutral-600 cursor-pointer" @click="setlistFeedback = null">
+            <UIcon name="i-lucide-x" class="w-4 h-4" />
           </button>
         </div>
 
-        <!-- ============================================== -->
-        <!-- TAB 1 CONTENT: SETLIST MANAGEMENT (APPWRITE)    -->
-        <!-- ============================================== -->
-        <div v-if="activeTab === 'setlists'" class="space-y-6">
-          <!-- Notice / Error feedback -->
-          <div
-            v-if="setlistFeedback"
-            :class="[
-              'p-4 rounded-2xl text-xs sm:text-sm flex items-center justify-between border',
-              setlistFeedback.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
-            ]"
+        <!-- Setlist Search & Bar -->
+        <div class="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+          <div class="w-full sm:w-80">
+            <UInput
+              v-model="searchSetlist"
+              placeholder="Cari judul Indonesia atau Jepang..."
+              icon="i-lucide-search"
+              size="sm"
+              class="w-full"
+            />
+          </div>
+        </div>
+
+        <!-- Grid Kartu Setlist -->
+        <div v-if="isSetlistsLoading" class="p-12 text-center space-y-3">
+          <div class="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto" />
+          <p class="text-xs text-neutral-500">Memuat data setlist...</p>
+        </div>
+
+        <div v-else-if="!filteredSetlists.length" class="p-12 text-center rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 space-y-3">
+          <UIcon name="i-lucide-disc-3" class="w-12 h-12 text-neutral-300 dark:text-neutral-700 mx-auto" />
+          <p class="text-sm font-bold text-neutral-700 dark:text-neutral-300">Belum ada data setlist.</p>
+          <UButton
+            color="primary"
+            variant="soft"
+            size="sm"
+            class="rounded-xl cursor-pointer"
+            @click="openCreateSetlistModal"
           >
-            <div class="flex items-center gap-2.5">
-              <UIcon
-                :name="setlistFeedback.type === 'success' ? 'i-lucide-check-circle-2' : 'i-lucide-alert-circle'"
-                class="w-5 h-5 flex-shrink-0"
+            Tambah Setlist Pertama
+          </UButton>
+        </div>
+
+        <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div
+            v-for="item in filteredSetlists"
+            :key="item.$id || item.id"
+            class="group rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden shadow-xs hover:shadow-md transition-all duration-300 flex flex-col"
+          >
+            <!-- Poster Foto Setlist -->
+            <div class="relative aspect-4/3 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+              <img
+                v-if="item.image_url"
+                :src="item.image_url"
+                :alt="item.title_id"
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                loading="lazy"
               />
-              <span>{{ setlistFeedback.text }}</span>
-            </div>
-            <button type="button" class="text-neutral-400 hover:text-neutral-600 cursor-pointer" @click="setlistFeedback = null">
-              <UIcon name="i-lucide-x" class="w-4 h-4" />
-            </button>
-          </div>
-
-          <!-- Appwrite Configuration Helper Note -->
-          <div
-            v-if="setlistAppwriteNotice"
-            class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-start gap-3"
-          >
-            <UIcon name="i-lucide-database" class="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-500" />
-            <div class="space-y-1">
-              <div class="font-bold">Koneksi Appwrite Database & Storage:</div>
-              <p class="leading-relaxed">{{ setlistAppwriteNotice }}</p>
-              <p class="text-[11px] opacity-80 pt-0.5">
-                Pastikan Database (<code>{{ dbId }}</code>), Collection (<code>{{ collectionId }}</code>), dan Bucket (<code>{{ bucketId }}</code>) telah dibuat di Appwrite Console.
-              </p>
-            </div>
-          </div>
-
-          <!-- Setlist Search & Bar -->
-          <div class="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between">
-            <div class="w-full sm:w-80">
-              <UInput
-                v-model="searchSetlist"
-                placeholder="Cari judul Indonesia atau Jepang..."
-                icon="i-lucide-search"
-                size="sm"
-                class="w-full"
-              />
-            </div>
-
-            <div class="flex items-center gap-2">
-              <UButton
-                color="neutral"
-                variant="subtle"
-                size="xs"
-                class="rounded-xl cursor-pointer"
-                :loading="isSetlistsLoading"
-                @click="fetchSetlists"
-              >
-                <template #leading>
-                  <UIcon name="i-lucide-refresh-cw" class="w-3.5 h-3.5" />
-                </template>
-                Segarkan Data
-              </UButton>
-            </div>
-          </div>
-
-          <!-- Loading State -->
-          <div v-if="isSetlistsLoading && !setlists.length" class="py-16 text-center text-xs text-neutral-500">
-            <UIcon name="i-lucide-loader-2" class="w-7 h-7 animate-spin text-primary mx-auto mb-2" />
-            Memuat data setlist dari Appwrite...
-          </div>
-
-          <!-- Empty State -->
-          <div
-            v-else-if="!filteredSetlists.length"
-            class="p-12 text-center rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 space-y-3"
-          >
-            <UIcon name="i-lucide-disc-3" class="w-10 h-10 text-neutral-300 dark:text-neutral-600 mx-auto" />
-            <p class="text-sm font-bold text-neutral-700 dark:text-neutral-300">Belum ada data setlist yang sesuai.</p>
-            <p class="text-xs text-neutral-400">Klik tombol "Tambah Setlist" untuk menambahkan poster dan data setlist baru.</p>
-          </div>
-
-          <!-- Setlists Grid Cards: Image, Judul Indonesia, Judul Jepang -->
-          <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            <div
-              v-for="item in filteredSetlists"
-              :key="item.$id || item.id"
-              class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col group"
-            >
-              <!-- Poster / Image -->
-              <div class="relative aspect-video sm:aspect-4/3 w-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
-                <img
-                  v-if="item.image_url"
-                  :src="item.image_url"
-                  :alt="item.title_id"
-                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div v-else class="w-full h-full flex items-center justify-center text-neutral-400">
-                  <UIcon name="i-lucide-image" class="w-10 h-10" />
-                </div>
-
-                <div class="absolute top-2.5 right-2.5">
-                  <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-black/60 text-white backdrop-blur-xs">
-                    Setlist
-                  </span>
-                </div>
+              <div v-else class="w-full h-full flex flex-col items-center justify-center text-neutral-400 gap-1.5 p-4 text-center">
+                <UIcon name="i-lucide-image" class="w-8 h-8" />
+                <span class="text-[11px]">Tanpa Poster</span>
               </div>
 
-              <!-- Information: Judul Indonesia & Judul Jepang -->
-              <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
-                <div class="space-y-1">
-                  <!-- Judul Indonesia -->
-                  <h4 class="font-extrabold text-base text-neutral-900 dark:text-white leading-snug">
-                    {{ item.title_id }}
-                  </h4>
-                  <!-- Judul Jepang -->
-                  <p class="text-xs text-neutral-500 dark:text-neutral-400 italic">
-                    {{ item.title_jp }}
-                  </p>
-                </div>
+              <div class="absolute top-3 right-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] text-white font-medium">
+                <UIcon name="i-lucide-disc-3" class="w-3 h-3 text-primary" />
+                <span>Setlist</span>
+              </div>
+            </div>
 
-                <!-- Actions: Edit & Hapus -->
-                <div class="pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
-                  <UButton
-                    color="neutral"
-                    variant="subtle"
-                    size="xs"
-                    class="rounded-xl font-bold cursor-pointer"
-                    @click="openEditSetlistModal(item)"
-                  >
-                    <template #leading>
-                      <UIcon name="i-lucide-pencil" class="w-3.5 h-3.5" />
-                    </template>
-                    Edit
-                  </UButton>
+            <!-- Detail Setlist: Judul Indonesia & Judul Jepang -->
+            <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
+              <div class="space-y-1.5">
+                <h3 class="font-black text-base text-neutral-900 dark:text-white leading-snug line-clamp-2">
+                  {{ item.title_id }}
+                </h3>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400 font-medium italic line-clamp-1">
+                  {{ item.title_jp }}
+                </p>
+              </div>
 
-                  <UButton
-                    color="neutral"
-                    variant="ghost"
-                    size="xs"
-                    class="text-red-500 hover:bg-red-500/10 rounded-xl cursor-pointer"
-                    title="Hapus Setlist"
-                    @click="confirmDeleteSetlist(item)"
-                  >
-                    <template #leading>
-                      <UIcon name="i-lucide-trash-2" class="w-3.5 h-3.5" />
-                    </template>
-                    Hapus
-                  </UButton>
-                </div>
+              <!-- Tombol Aksi Edit & Hapus -->
+              <div class="pt-3 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-end gap-2">
+                <UButton
+                  color="neutral"
+                  variant="subtle"
+                  size="xs"
+                  class="rounded-xl font-bold cursor-pointer"
+                  @click="openEditSetlistModal(item)"
+                >
+                  <template #leading>
+                    <UIcon name="i-lucide-pencil" class="w-3.5 h-3.5" />
+                  </template>
+                  Edit
+                </UButton>
+
+                <UButton
+                  color="error"
+                  variant="subtle"
+                  size="xs"
+                  class="rounded-xl font-bold cursor-pointer"
+                  @click="confirmDeleteSetlist(item)"
+                >
+                  <template #leading>
+                    <UIcon name="i-lucide-trash-2" class="w-3.5 h-3.5" />
+                  </template>
+                  Hapus
+                </UButton>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- ============================================== -->
-        <!-- TAB 2 CONTENT: JADWAL SHOW MANAGEMENT          -->
-        <!-- ============================================== -->
-        <div v-if="activeTab === 'shows'" class="space-y-6">
-          <!-- Alert Feedback -->
-          <div
-            v-if="showFeedback"
-            :class="[
-              'p-4 rounded-2xl text-xs sm:text-sm flex items-center justify-between border',
-              showFeedback.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
-            ]"
-          >
-            <div class="flex items-center gap-2.5">
-              <UIcon
-                :name="showFeedback.type === 'success' ? 'i-lucide-check-circle-2' : 'i-lucide-alert-circle'"
-                class="w-5 h-5 flex-shrink-0"
-              />
-              <span>{{ showFeedback.text }}</span>
-            </div>
-            <button type="button" class="text-neutral-400 hover:text-neutral-600 cursor-pointer" @click="showFeedback = null">
-              <UIcon name="i-lucide-x" class="w-4 h-4" />
-            </button>
+      <!-- ============================================================== -->
+      <!-- TAB 2 CONTENT: JADWAL SHOW (RELASI SETLIST, TANGGAL, WAKTU...) -->
+      <!-- ============================================================== -->
+      <div v-else class="space-y-6">
+        <!-- Notifikasi Banner Feedback -->
+        <div
+          v-if="showFeedback"
+          :class="[
+            'p-4 rounded-2xl border text-xs sm:text-sm font-medium flex items-center justify-between gap-3 transition-all',
+            showFeedback.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+              : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
+          ]"
+        >
+          <div class="flex items-center gap-2.5">
+            <UIcon
+              :name="showFeedback.type === 'success' ? 'i-lucide-check-circle-2' : 'i-lucide-alert-circle'"
+              class="w-5 h-5 flex-shrink-0"
+            />
+            <span>{{ showFeedback.text }}</span>
           </div>
+          <button type="button" class="text-neutral-400 hover:text-neutral-600 cursor-pointer" @click="showFeedback = null">
+            <UIcon name="i-lucide-x" class="w-4 h-4" />
+          </button>
+        </div>
 
-          <!-- Search & Category Filters -->
-          <div class="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
-            <div class="w-full md:w-80">
-              <UInput
-                v-model="searchShowQuery"
-                placeholder="Cari berdasarkan judul atau tanggal..."
-                icon="i-lucide-search"
-                size="sm"
-                class="w-full"
-              />
-            </div>
+        <!-- Search Bar Show -->
+        <div class="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+          <div class="w-full sm:w-80">
+            <UInput
+              v-model="searchShowQuery"
+              placeholder="Cari setlist, tanggal, atau member..."
+              icon="i-lucide-search"
+              size="sm"
+              class="w-full"
+            />
+          </div>
+        </div>
 
-            <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
-              <button
-                v-for="cat in categories"
-                :key="cat"
-                type="button"
-                :class="[
-                  'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer',
-                  selectedCategory === cat
-                    ? 'bg-primary text-white shadow-xs'
-                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-                ]"
-                @click="selectedCategory = cat"
-              >
-                {{ cat }}
-              </button>
+        <!-- Tabel Show / Pertunjukan -->
+        <div class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs overflow-hidden">
+          <div class="p-5 sm:p-6 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-base text-neutral-900 dark:text-white flex items-center gap-2">
+                <UIcon name="i-lucide-list" class="w-4 h-4 text-primary" />
+                Daftar Jadwal Pertunjukan
+              </h3>
+              <p class="text-xs text-neutral-500 mt-0.5">Menampilkan {{ filteredShows.length }} jadwal pertunjukan aktif.</p>
             </div>
           </div>
 
-          <!-- Shows Table -->
-          <div class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs overflow-hidden">
-            <div class="p-5 sm:p-6 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
-              <div>
-                <h3 class="font-bold text-base text-neutral-900 dark:text-white flex items-center gap-2">
-                  <UIcon name="i-lucide-list" class="w-4 h-4 text-primary" />
-                  Daftar Pertunjukan
-                </h3>
-                <p class="text-xs text-neutral-500 mt-0.5">Menampilkan {{ filteredShows.length }} jadwal pertunjukan.</p>
-              </div>
-            </div>
+          <div v-if="isShowsLoading" class="p-12 text-center space-y-3">
+            <div class="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto" />
+            <p class="text-xs text-neutral-500">Memuat jadwal pertunjukan...</p>
+          </div>
 
-            <div v-if="!filteredShows.length" class="p-12 text-center space-y-3">
-              <UIcon name="i-lucide-calendar-x" class="w-10 h-10 text-neutral-300 dark:text-neutral-600 mx-auto" />
-              <p class="text-sm font-bold text-neutral-700 dark:text-neutral-300">Tidak ada pertunjukan yang cocok.</p>
-            </div>
+          <div v-else-if="!filteredShows.length" class="p-12 text-center space-y-3">
+            <UIcon name="i-lucide-calendar-x" class="w-10 h-10 text-neutral-300 dark:text-neutral-600 mx-auto" />
+            <p class="text-sm font-bold text-neutral-700 dark:text-neutral-300">Tidak ada jadwal pertunjukan yang cocok.</p>
+            <UButton
+              color="primary"
+              variant="soft"
+              size="sm"
+              class="rounded-xl cursor-pointer"
+              @click="openCreateShowModal"
+            >
+              Tambah Jadwal Show Pertama
+            </UButton>
+          </div>
 
-            <div v-else class="overflow-x-auto">
-              <table class="w-full text-left text-xs sm:text-sm">
-                <thead class="bg-neutral-50/80 dark:bg-neutral-800/40 text-[11px] font-bold uppercase tracking-wider text-neutral-500 border-b border-neutral-100 dark:border-neutral-800">
-                  <tr>
-                    <th class="py-3.5 px-4 sm:px-6">Pertunjukan</th>
-                    <th class="py-3.5 px-4">Kategori</th>
-                    <th class="py-3.5 px-4">Jadwal & Waktu</th>
-                    <th class="py-3.5 px-4">Status</th>
-                    <th class="py-3.5 px-4">Lineup</th>
-                    <th class="py-3.5 px-4 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/80">
-                  <tr
-                    v-for="show in filteredShows"
-                    :key="show.id"
-                    class="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/30 transition-colors"
-                  >
-                    <td class="py-4 px-4 sm:px-6">
-                      <div class="font-bold text-neutral-900 dark:text-white">{{ show.title }}</div>
-                      <div class="text-[11px] text-neutral-400 italic">{{ show.originalTitle }}</div>
-                    </td>
-                    <td class="py-4 px-4 whitespace-nowrap">
-                      <span class="inline-block px-2.5 py-1 rounded-lg text-[10px] font-bold bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
-                        {{ show.category }}
-                      </span>
-                    </td>
-                    <td class="py-4 px-4 whitespace-nowrap">
-                      <div class="font-semibold text-neutral-900 dark:text-white">{{ show.date }}</div>
-                      <div class="text-[11px] text-primary font-mono font-bold">{{ show.time }}</div>
-                    </td>
-                    <td class="py-4 px-4 whitespace-nowrap">
-                      <UBadge
-                        :color="show.statusColor"
-                        variant="subtle"
-                        size="xs"
-                        class="font-bold"
-                      >
-                        {{ show.status }}
-                      </UBadge>
-                    </td>
-                    <td class="py-4 px-4 whitespace-nowrap">
-                      <button
-                        type="button"
-                        class="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                        @click="viewLineup(show)"
-                      >
-                        <UIcon name="i-lucide-users" class="w-3.5 h-3.5" />
-                        <span>{{ show.lineup.length }} Member</span>
-                      </button>
-                    </td>
-                    <td class="py-4 px-4 text-right whitespace-nowrap">
-                      <div class="flex items-center justify-end gap-1.5">
-                        <UButton
-                          color="neutral"
-                          variant="ghost"
-                          size="xs"
-                          class="rounded-lg cursor-pointer"
-                          @click="openEditShowModal(show)"
-                        >
-                          <template #leading>
-                            <UIcon name="i-lucide-pencil" class="w-3.5 h-3.5" />
-                          </template>
-                          Edit
-                        </UButton>
-                        <UButton
-                          color="neutral"
-                          variant="ghost"
-                          size="xs"
-                          class="text-red-500 hover:bg-red-500/10 rounded-lg cursor-pointer"
-                          @click="confirmDeleteShow(show)"
-                        >
-                          <template #leading>
-                            <UIcon name="i-lucide-trash-2" class="w-3.5 h-3.5" />
-                          </template>
-                        </UButton>
+          <div v-else class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm">
+              <thead class="bg-neutral-50/80 dark:bg-neutral-800/40 text-[11px] font-bold uppercase tracking-wider text-neutral-500 border-b border-neutral-100 dark:border-neutral-800">
+                <tr>
+                  <th class="py-3.5 px-4 sm:px-6">Setlist (Relasi)</th>
+                  <th class="py-3.5 px-4">Tanggal & Waktu</th>
+                  <th class="py-3.5 px-4">Deskripsi Ringkas</th>
+                  <th class="py-3.5 px-4">Lineup Member</th>
+                  <th class="py-3.5 px-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/80">
+                <tr
+                  v-for="show in filteredShows"
+                  :key="show.$id || show.id"
+                  class="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/30 transition-colors"
+                >
+                  <!-- 1. Setlist yang berelasi (Poster & Judul) -->
+                  <td class="py-4 px-4 sm:px-6">
+                    <div class="flex items-center gap-3">
+                      <div class="w-12 h-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 overflow-hidden flex-shrink-0 border border-neutral-200 dark:border-neutral-700">
+                        <img
+                          v-if="getRelatedSetlist(show.setlist_id)?.image_url"
+                          :src="getRelatedSetlist(show.setlist_id)!.image_url"
+                          :alt="getRelatedSetlist(show.setlist_id)?.title_id"
+                          class="w-full h-full object-cover"
+                        />
+                        <div v-else class="w-full h-full flex items-center justify-center text-neutral-400">
+                          <UIcon name="i-lucide-disc-3" class="w-5 h-5" />
+                        </div>
                       </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                      <div class="min-w-0">
+                        <div class="font-bold text-neutral-900 dark:text-white truncate">
+                          {{ getRelatedSetlist(show.setlist_id)?.title_id || 'Setlist Terpilih' }}
+                        </div>
+                        <div class="text-[11px] text-neutral-400 italic truncate">
+                          {{ getRelatedSetlist(show.setlist_id)?.title_jp || '-' }}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- 2. Tanggal & Waktu -->
+                  <td class="py-4 px-4 whitespace-nowrap">
+                    <div class="flex items-center gap-1.5 font-semibold text-neutral-900 dark:text-white">
+                      <UIcon name="i-lucide-calendar" class="w-3.5 h-3.5 text-neutral-400" />
+                      <span>{{ formatIndonesianDate(show.date) }}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 text-[11px] text-primary font-mono font-bold mt-0.5">
+                      <UIcon name="i-lucide-clock" class="w-3.5 h-3.5 text-primary" />
+                      <span>{{ formatIndonesianTime(show.time, show.date) }}</span>
+                    </div>
+                  </td>
+
+                  <!-- 3. Deskripsi Ringkas -->
+                  <td class="py-4 px-4 max-w-xs">
+                    <p class="text-xs text-neutral-600 dark:text-neutral-300 line-clamp-2 leading-relaxed">
+                      {{ show.description || '-' }}
+                    </p>
+                  </td>
+
+                  <!-- 4. Lineup Member -->
+                  <td class="py-4 px-4 whitespace-nowrap">
+                    <button
+                      type="button"
+                      class="px-2.5 py-1 rounded-xl text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 flex items-center gap-1.5 cursor-pointer transition-colors"
+                      @click="viewLineup(show)"
+                    >
+                      <UIcon name="i-lucide-users" class="w-3.5 h-3.5" />
+                      <span>{{ getLineupList(show.lineup).length }} Member</span>
+                    </button>
+                  </td>
+
+                  <!-- 5. Aksi: Edit & Hapus -->
+                  <td class="py-4 px-4 text-right whitespace-nowrap">
+                    <div class="flex items-center justify-end gap-1.5">
+                      <UButton
+                        color="neutral"
+                        variant="ghost"
+                        size="xs"
+                        class="rounded-lg cursor-pointer"
+                        @click="openEditShowModal(show)"
+                      >
+                        <template #leading>
+                          <UIcon name="i-lucide-pencil" class="w-3.5 h-3.5" />
+                        </template>
+                        Edit
+                      </UButton>
+                      <UButton
+                        color="neutral"
+                        variant="ghost"
+                        size="xs"
+                        class="text-red-500 hover:bg-red-500/10 rounded-lg cursor-pointer"
+                        @click="confirmDeleteShow(show)"
+                      >
+                        <template #leading>
+                          <UIcon name="i-lucide-trash-2" class="w-3.5 h-3.5" />
+                        </template>
+                      </UButton>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -954,10 +887,10 @@ const viewLineup = (show: ShowItem) => {
     >
       <template #content>
         <form class="space-y-5 p-5 sm:p-6" @submit.prevent="handleSaveSetlist">
-          <!-- 1. Foto / Image Setlist (Appwrite Storage) -->
+          <!-- 1. Foto / Image Setlist -->
           <div class="space-y-2">
             <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300 block uppercase tracking-wider">
-              Foto / Poster Setlist (Appwrite Storage)
+              Foto / Poster Setlist
             </label>
 
             <div
@@ -1021,7 +954,7 @@ const viewLineup = (show: ShowItem) => {
                 </div>
 
                 <p class="text-[11px] text-neutral-400 dark:text-neutral-500 leading-snug">
-                  Tarik gambar ke sini atau klik pilih. Berkas foto akan otomatis diunggah ke Appwrite Storage bucket.
+                  Tarik gambar ke sini atau klik pilih. Format file yang didukung: JPG, PNG, atau WebP.
                 </p>
               </div>
             </div>
@@ -1050,14 +983,14 @@ const viewLineup = (show: ShowItem) => {
             <UInput
               v-model="setlistForm.title_jp"
               placeholder="Contoh: Ramune no Nomikata (ラムネの飲み方)"
-              icon="i-lucide-globe"
+              icon="i-lucide-disc-3"
               size="sm"
               class="w-full"
               required
             />
           </div>
 
-          <!-- Footer Buttons -->
+          <!-- Actions -->
           <div class="pt-3 flex items-center justify-end gap-2 border-t border-neutral-100 dark:border-neutral-800">
             <UButton
               type="button"
@@ -1074,21 +1007,18 @@ const viewLineup = (show: ShowItem) => {
               color="primary"
               variant="solid"
               size="sm"
-              class="rounded-xl font-bold cursor-pointer shadow-sm shadow-primary/20"
               :loading="isSetlistActionLoading"
+              class="rounded-xl font-bold cursor-pointer"
             >
-              <template #leading>
-                <UIcon name="i-lucide-database" class="w-4 h-4" />
-              </template>
-              {{ setlistModalMode === 'create' ? 'Simpan ke Appwrite' : 'Perbarui Setlist' }}
+              {{ setlistModalMode === 'create' ? 'Tambah Setlist' : 'Simpan Perubahan' }}
             </UButton>
           </div>
         </form>
       </template>
     </UModal>
 
-    <!-- MODAL: Konfirmasi Hapus Setlist -->
-    <UModal v-model:open="isDeleteSetlistModalOpen" title="Hapus Setlist dari Appwrite">
+    <!-- MODAL: HAPUS SETLIST -->
+    <UModal v-model:open="isDeleteSetlistModalOpen" title="Konfirmasi Hapus Setlist">
       <template #content>
         <div class="p-6 space-y-4">
           <div class="flex items-start gap-4">
@@ -1097,10 +1027,10 @@ const viewLineup = (show: ShowItem) => {
             </div>
             <div>
               <h4 class="font-bold text-sm text-neutral-900 dark:text-white">
-                Hapus setlist "{{ setlistToDelete?.title_id }}"?
+                Hapus "{{ setlistToDelete?.title_id }}"?
               </h4>
               <p class="text-xs text-neutral-500 mt-1 leading-relaxed">
-                Dokumen pada Database Appwrite dan berkas gambar di Appwrite Storage akan dihapus secara permanen.
+                Setlist dan file foto terkait akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.
               </p>
             </div>
           </div>
@@ -1119,8 +1049,8 @@ const viewLineup = (show: ShowItem) => {
               color="error"
               variant="solid"
               size="sm"
-              class="rounded-xl font-bold cursor-pointer"
               :loading="isSetlistActionLoading"
+              class="rounded-xl font-bold cursor-pointer"
               @click="handleDeleteSetlist"
             >
               Ya, Hapus
@@ -1130,69 +1060,119 @@ const viewLineup = (show: ShowItem) => {
       </template>
     </UModal>
 
-    <!-- MODAL: Tambah / Edit Show (Jadwal) -->
-    <UModal v-model:open="isShowModalOpen" :title="showModalMode === 'create' ? 'Tambah Jadwal Show' : 'Edit Jadwal Show'">
+    <!-- ============================================================== -->
+    <!-- MODAL 2: TAMBAH / EDIT SHOW (RELASI SETLIST, TGL, WAKTU, DLL) -->
+    <!-- ============================================================== -->
+    <UModal
+      v-model:open="isShowModalOpen"
+      :title="showModalMode === 'create' ? 'Tambah Jadwal Show Baru' : 'Edit Jadwal Show'"
+    >
       <template #content>
         <form class="space-y-4 p-5 sm:p-6" @submit.prevent="handleSaveShow">
-          <div class="space-y-1">
-            <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300">Nama Setlist / Judul Show *</label>
-            <UInput v-model="showForm.title" placeholder="Contoh: Cara Meminum Ramune" required size="sm" class="w-full" />
-          </div>
-
-          <div class="space-y-1">
-            <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300">Judul Asli (Kanji/Romaji)</label>
-            <UInput v-model="showForm.originalTitle" placeholder="Contoh: Ramune no Nomikata" size="sm" class="w-full" />
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="space-y-1">
-              <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300">Kategori</label>
-              <select
-                v-model="showForm.category"
-                class="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white"
+          <!-- 1. Relasi Setlist -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300 block">
+              Setlist Teater (Relasi) *
+            </label>
+            <select
+              v-model="showForm.setlist_id"
+              class="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white"
+              required
+            >
+              <option value="" disabled>-- Pilih Setlist yang Dipentaskan --</option>
+              <option
+                v-for="s in setlists"
+                :key="s.$id || s.id"
+                :value="s.$id || s.id"
               >
-                <option v-for="opt in categoryOptions" :key="opt" :value="opt">{{ opt }}</option>
-              </select>
-            </div>
+                {{ s.title_id }} ({{ s.title_jp }})
+              </option>
+            </select>
 
-            <div class="space-y-1">
-              <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300">Status Show</label>
-              <UInput v-model="showForm.status" placeholder="Jadwal Terkonfirmasi / Show Siang" size="sm" class="w-full" />
+            <!-- Preview Setlist Terpilih -->
+            <div
+              v-if="selectedFormSetlist"
+              class="mt-2 p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 flex items-center gap-3 border border-neutral-200/60 dark:border-neutral-700/60"
+            >
+              <div class="w-10 h-10 rounded-lg overflow-hidden bg-neutral-200 dark:bg-neutral-700 flex-shrink-0">
+                <img
+                  v-if="selectedFormSetlist.image_url"
+                  :src="selectedFormSetlist.image_url"
+                  alt="Poster"
+                  class="w-full h-full object-cover"
+                />
+                <UIcon v-else name="i-lucide-disc-3" class="w-5 h-5 m-2.5 text-neutral-400" />
+              </div>
+              <div class="min-w-0">
+                <div class="font-bold text-xs text-neutral-900 dark:text-white truncate">
+                  {{ selectedFormSetlist.title_id }}
+                </div>
+                <div class="text-[11px] text-neutral-400 italic truncate">
+                  {{ selectedFormSetlist.title_jp }}
+                </div>
+              </div>
             </div>
           </div>
 
+          <!-- 2 & 3. Tanggal & Waktu Pertunjukan -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1">
-              <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300">Tanggal Pertunjukan *</label>
-              <UInput v-model="showForm.date" placeholder="Contoh: Jumat, 3 Oktober 2026" required size="sm" class="w-full" />
+              <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300">
+                Tanggal Pertunjukan *
+              </label>
+              <input
+                v-model="showForm.date"
+                type="date"
+                required
+                class="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+              <p v-if="showForm.date" class="text-[11px] text-primary font-medium flex items-center gap-1 pt-0.5">
+                <UIcon name="i-lucide-calendar" class="w-3 h-3" />
+                <span>{{ formatIndonesianDate(showForm.date) }}</span>
+              </p>
             </div>
 
             <div class="space-y-1">
-              <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300">Waktu (WIB)</label>
-              <UInput v-model="showForm.time" placeholder="Contoh: 19:00 WIB" size="sm" class="w-full" />
+              <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300">
+                Waktu Pertunjukan *
+              </label>
+              <input
+                v-model="showForm.time"
+                type="time"
+                required
+                class="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+              <p v-if="showForm.time" class="text-[11px] text-neutral-500 font-medium flex items-center gap-1 pt-0.5">
+                <UIcon name="i-lucide-clock" class="w-3 h-3 text-primary" />
+                <span>Format 24 Jam ({{ formatIndonesianTime(showForm.time) }})</span>
+              </p>
             </div>
           </div>
 
+          <!-- 4. Deskripsi Ringkas -->
           <div class="space-y-1">
             <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300">Deskripsi Ringkas</label>
             <textarea
               v-model="showForm.description"
               rows="2"
-              placeholder="Deskripsi singkat tentang setlist dan suasana show..."
+              placeholder="Deskripsi singkat mengenai pertunjukan ini..."
               class="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white resize-none"
             />
           </div>
 
+          <!-- 5. Lineup Member -->
           <div class="space-y-1">
             <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300">Lineup Member (Pisahkan dengan koma)</label>
             <textarea
               v-model="showForm.lineupText"
-              rows="2"
-              placeholder="Freya Jayawardana, Angelina Christy, Shania Gracia, ..."
+              rows="3"
+              placeholder="Freya Jayawardana, Angelina Christy, Shania Gracia, Gita Sekar, ..."
               class="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white resize-none"
             />
+            <p class="text-[10px] text-neutral-400">Tuliskan nama-nama member yang tampil dipisahkan dengan tanda koma.</p>
           </div>
 
+          <!-- Actions -->
           <div class="pt-3 flex items-center justify-end gap-2 border-t border-neutral-100 dark:border-neutral-800">
             <UButton
               type="button"
@@ -1209,6 +1189,7 @@ const viewLineup = (show: ShowItem) => {
               color="primary"
               variant="solid"
               size="sm"
+              :loading="isShowActionLoading"
               class="rounded-xl font-bold cursor-pointer"
             >
               {{ showModalMode === 'create' ? 'Tambah Show' : 'Simpan Perubahan' }}
@@ -1218,7 +1199,7 @@ const viewLineup = (show: ShowItem) => {
       </template>
     </UModal>
 
-    <!-- MODAL: Konfirmasi Hapus Show -->
+    <!-- MODAL: KONFIRMASI HAPUS SHOW -->
     <UModal v-model:open="isDeleteShowModalOpen" title="Konfirmasi Hapus Pertunjukan">
       <template #content>
         <div class="p-6 space-y-4">
@@ -1228,10 +1209,10 @@ const viewLineup = (show: ShowItem) => {
             </div>
             <div>
               <h4 class="font-bold text-sm text-neutral-900 dark:text-white">
-                Hapus "{{ showToDelete?.title }}"?
+                Hapus Jadwal Show ini?
               </h4>
               <p class="text-xs text-neutral-500 mt-1 leading-relaxed">
-                Pertunjukan pada tanggal <strong>{{ showToDelete?.date }}</strong> akan dihapus dari daftar jadwal show.
+                Pertunjukan pada tanggal <strong>{{ showToDelete?.date }}</strong> ({{ showToDelete?.time }}) akan dihapus dari daftar jadwal show.
               </p>
             </div>
           </div>
@@ -1250,6 +1231,7 @@ const viewLineup = (show: ShowItem) => {
               color="error"
               variant="solid"
               size="sm"
+              :loading="isShowActionLoading"
               class="rounded-xl font-bold cursor-pointer"
               @click="handleDeleteShow"
             >
@@ -1260,36 +1242,44 @@ const viewLineup = (show: ShowItem) => {
       </template>
     </UModal>
 
-    <!-- MODAL: Preview Lineup Member -->
-    <UModal v-model:open="isLineupModalOpen" :title="`Lineup Member - ${selectedShowForLineup?.title || 'Show'}`">
+    <!-- MODAL: PREVIEW LINEUP MEMBER -->
+    <UModal
+      v-model:open="isLineupModalOpen"
+      :title="`Lineup Member - ${getRelatedSetlist(selectedShowForLineup?.setlist_id)?.title_id || 'Show'}`"
+    >
       <template #content>
         <div class="p-6 space-y-4">
           <div>
-            <div class="text-xs text-neutral-400">{{ selectedShowForLineup?.date }} &bull; {{ selectedShowForLineup?.time }}</div>
+            <div class="text-xs text-neutral-400">
+              {{ formatIndonesianDate(selectedShowForLineup?.date) }} &bull; {{ formatIndonesianTime(selectedShowForLineup?.time, selectedShowForLineup?.date) }}
+            </div>
             <h4 class="text-base font-bold text-neutral-900 dark:text-white mt-0.5">
-              {{ selectedShowForLineup?.title }} ({{ selectedShowForLineup?.lineup?.length || 0 }} Member)
+              {{ getRelatedSetlist(selectedShowForLineup?.setlist_id)?.title_id || 'Pertunjukan' }}
             </h4>
           </div>
 
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-80 overflow-y-auto pr-1">
-            <div
-              v-for="(member, idx) in selectedShowForLineup?.lineup || []"
-              :key="idx"
-              class="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 flex items-center gap-2"
-            >
-              <div class="w-6 h-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                {{ idx + 1 }}
-              </div>
-              <span class="text-xs font-semibold text-neutral-800 dark:text-neutral-200 truncate">{{ member }}</span>
+          <div class="space-y-2">
+            <div class="text-xs font-bold text-neutral-700 dark:text-neutral-300">
+              Daftar Member Tampil ({{ getLineupList(selectedShowForLineup?.lineup).length }} Member):
+            </div>
+            <div class="flex flex-wrap gap-2 pt-1 max-h-60 overflow-y-auto pr-1">
+              <span
+                v-for="(member, idx) in getLineupList(selectedShowForLineup?.lineup)"
+                :key="idx"
+                class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-200/50 dark:border-neutral-700/50 flex items-center gap-1.5"
+              >
+                <span class="w-1.5 h-1.5 rounded-full bg-primary" />
+                {{ member }}
+              </span>
             </div>
           </div>
 
-          <div class="pt-2 flex justify-end">
+          <div class="pt-3 border-t border-neutral-100 dark:border-neutral-800 flex justify-end">
             <UButton
               color="neutral"
               variant="subtle"
               size="sm"
-              class="rounded-xl cursor-pointer"
+              class="rounded-xl cursor-pointer font-bold"
               @click="isLineupModalOpen = false"
             >
               Tutup
