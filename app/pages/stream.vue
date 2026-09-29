@@ -247,106 +247,9 @@ const handleSendMessage = async () => {
 
     <!-- Main Live Stream Grid (Player + Chat) -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      <!-- Video Player & Controls Area -->
-      <div class="lg:col-span-2 space-y-4">
-        <!-- Live Player Component -->
+      <!-- Video Player Component -->
+      <div class="lg:col-span-2">
         <HlsPlayer :src="streamUrl" />
-
-        <!-- Show Meta & Description Card (Jika show aktif dalam jendela 10 menit sebelum & 2.5 jam sesudah) -->
-        <UCard v-if="activeLiveShow">
-          <template #header>
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span class="text-xs font-semibold text-primary uppercase tracking-wider">Informasi Pertunjukan</span>
-                <h3 class="font-extrabold text-xl text-neutral-900 dark:text-white mt-0.5">
-                  {{ activeLiveShow.title }}
-                </h3>
-                <p v-if="activeLiveShow.originalTitle" class="text-xs text-neutral-500 font-medium">
-                  {{ activeLiveShow.originalTitle }}
-                </p>
-              </div>
-              <div class="flex flex-col sm:items-end gap-1 text-xs text-neutral-500 dark:text-neutral-400">
-                <div class="flex items-center gap-1.5 font-medium text-neutral-700 dark:text-neutral-300">
-                  <UIcon name="i-lucide-calendar" class="w-4 h-4 text-primary" />
-                  <span>{{ activeLiveShow.date }}</span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <UIcon name="i-lucide-clock" class="w-3.5 h-3.5 text-primary" />
-                  <span>Mulai: {{ activeLiveShow.time }}</span>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <div class="space-y-4">
-            <p class="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-              {{ activeLiveShow.description }}
-            </p>
-
-            <!-- Lineup Member Badges -->
-            <div v-if="activeLiveShow.lineup.length > 0">
-              <div class="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">
-                Lineup Tampil Hari Ini ({{ activeLiveShow.lineup.length }} Member)
-              </div>
-              <div class="flex flex-wrap gap-1.5">
-                <span
-                  v-for="member in activeLiveShow.lineup"
-                  :key="member"
-                  class="px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-xs font-medium hover:bg-primary hover:text-white transition-colors cursor-default"
-                >
-                  {{ member }}
-                </span>
-              </div>
-            </div>
-            <div v-else class="text-xs text-neutral-400 italic">
-              Lineup member belum diumumkan atau menyusul.
-            </div>
-          </div>
-        </UCard>
-
-        <!-- No Active Show State Card (Jika di luar jendela waktu show) -->
-        <UCard v-else>
-          <div class="p-6 text-center space-y-3">
-            <div class="w-12 h-12 rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-neutral-400 flex items-center justify-center mx-auto">
-              <UIcon name="i-lucide-calendar-clock" class="w-6 h-6 text-primary/70" />
-            </div>
-            <div>
-              <h3 class="font-bold text-base text-neutral-900 dark:text-white">Tidak Ada Pertunjukan Berlangsung Saat Ini</h3>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-md mx-auto leading-relaxed">
-                Informasi pertunjukan teater akan otomatis aktif dan ditampilkan 10 menit sebelum jam panggung dimulai hingga 2 jam 30 menit setelah pertunjukan.
-              </p>
-            </div>
-
-            <!-- Next scheduled show teaser if available -->
-            <div v-if="nextUpcomingShow" class="mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-neutral-50 dark:bg-neutral-800/40 p-3 rounded-xl">
-              <div class="text-left">
-                <span class="text-[10px] uppercase font-bold text-primary tracking-wider">Jadwal Show Berikutnya</span>
-                <div class="font-bold text-neutral-900 dark:text-white mt-0.5">{{ nextUpcomingShow.title }}</div>
-                <div class="text-neutral-500 text-[11px]">{{ nextUpcomingShow.date }} &bull; {{ nextUpcomingShow.time }}</div>
-              </div>
-              <UButton
-                to="/jadwal"
-                color="primary"
-                variant="soft"
-                size="xs"
-                icon="i-lucide-calendar-days"
-                label="Lihat Jadwal Lengkap"
-                class="cursor-pointer font-bold"
-              />
-            </div>
-            <div v-else class="pt-2">
-              <UButton
-                to="/jadwal"
-                color="primary"
-                variant="soft"
-                size="xs"
-                icon="i-lucide-calendar-days"
-                label="Lihat Jadwal Teater"
-                class="cursor-pointer font-bold"
-              />
-            </div>
-          </div>
-        </UCard>
       </div>
 
       <!-- Live Chat Column -->
@@ -553,6 +456,120 @@ const handleSendMessage = async () => {
             </div>
           </template>
         </UCard>
+      </div>
+    </div>
+
+    <!-- Full Row: Informasi Pertunjukan (Tanpa Card) -->
+    <div class="pt-6 border-t border-neutral-200/80 dark:border-neutral-800/80">
+      <!-- State 1: Show Aktif -->
+      <div v-if="activeLiveShow" class="space-y-6">
+        <!-- Header Info Row -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-primary uppercase tracking-wider">
+                Informasi Pertunjukan
+              </span>
+              <span class="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-700" />
+              <span class="text-xs text-neutral-500 font-medium">Teater JKT48</span>
+            </div>
+            <h2 class="text-2xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
+              {{ activeLiveShow.title }}
+            </h2>
+            <p v-if="activeLiveShow.originalTitle" class="text-xs text-neutral-500 font-medium">
+              {{ activeLiveShow.originalTitle }}
+            </p>
+          </div>
+
+          <!-- Schedule Pills -->
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+              <UIcon name="i-lucide-calendar" class="w-4 h-4 text-primary" />
+              <span>{{ activeLiveShow.date }}</span>
+            </div>
+            <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+              <UIcon name="i-lucide-clock" class="w-4 h-4 text-primary" />
+              <span>Mulai: {{ activeLiveShow.time }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <p class="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed max-w-4xl">
+          {{ activeLiveShow.description }}
+        </p>
+
+        <!-- Lineup Member Section -->
+        <div class="space-y-3 pt-2">
+          <div class="flex items-center gap-2 text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
+            <UIcon name="i-lucide-users" class="w-4 h-4 text-primary" />
+            <span>Lineup Member Tampil Hari Ini</span>
+            <span v-if="activeLiveShow.lineup.length > 0" class="text-[11px] font-normal text-neutral-500">
+              ({{ activeLiveShow.lineup.length }} Member)
+            </span>
+          </div>
+
+          <div v-if="activeLiveShow.lineup.length > 0" class="flex flex-wrap gap-2">
+            <span
+              v-for="member in activeLiveShow.lineup"
+              :key="member"
+              class="px-3 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800/90 text-xs font-medium text-neutral-700 dark:text-neutral-200 hover:bg-primary hover:text-white transition-colors cursor-default"
+            >
+              {{ member }}
+            </span>
+          </div>
+          <div v-else class="text-xs text-neutral-400 italic">
+            Lineup member belum diumumkan atau menyusul.
+          </div>
+        </div>
+      </div>
+
+      <!-- State 2: Tidak Ada Show Aktif (Full Row, Tanpa Card) -->
+      <div v-else class="space-y-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 py-2">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-neutral-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <UIcon name="i-lucide-calendar-clock" class="w-6 h-6 text-primary" />
+            </div>
+            <div class="space-y-1 max-w-xl">
+              <h3 class="font-bold text-lg text-neutral-900 dark:text-white">
+                Tidak Ada Pertunjukan Berlangsung Saat Ini
+              </h3>
+              <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                Informasi pertunjukan teater akan otomatis aktif dan ditampilkan 10 menit sebelum jam panggung dimulai hingga 2 jam 30 menit setelah pertunjukan.
+              </p>
+            </div>
+          </div>
+
+          <!-- Next Show Teaser Box or Jadwal Button -->
+          <div v-if="nextUpcomingShow" class="flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-neutral-50 dark:bg-neutral-850 border border-neutral-200/60 dark:border-neutral-800 p-3.5 rounded-2xl">
+            <div class="text-left">
+              <span class="text-[10px] uppercase font-bold text-primary tracking-wider">Jadwal Show Berikutnya</span>
+              <div class="font-bold text-sm text-neutral-900 dark:text-white mt-0.5">{{ nextUpcomingShow.title }}</div>
+              <div class="text-neutral-500 text-xs">{{ nextUpcomingShow.date }} &bull; {{ nextUpcomingShow.time }}</div>
+            </div>
+            <UButton
+              to="/jadwal"
+              color="primary"
+              variant="soft"
+              size="xs"
+              icon="i-lucide-calendar-days"
+              label="Lihat Jadwal Lengkap"
+              class="cursor-pointer font-bold flex-shrink-0"
+            />
+          </div>
+          <div v-else>
+            <UButton
+              to="/jadwal"
+              color="primary"
+              variant="soft"
+              size="sm"
+              icon="i-lucide-calendar-days"
+              label="Lihat Jadwal Teater"
+              class="cursor-pointer font-bold"
+            />
+          </div>
+        </div>
       </div>
     </div>
   </div>
