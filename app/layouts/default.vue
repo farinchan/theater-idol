@@ -19,7 +19,93 @@ interface NavItem {
   description: string
 }
 
-const navItems: NavItem[] = [
+// Hubungkan ke data pertunjukan & setlist untuk deteksi live show
+const { shows: appwriteShows, fetchShows } = useAppwriteShow()
+const { setlists, fetchSetlists } = useAppwriteSetlist()
+
+// Muat data show secara SSR & Hydration
+await useAsyncData('default_layout_shows', async () => {
+  await Promise.all([fetchShows(), fetchSetlists()])
+  return true
+})
+
+// Timer reaktif untuk memperbarui status live tiap 30 detik
+const currentTime = ref(Date.now())
+let liveTimer: any = null
+
+onMounted(() => {
+  fetchShows()
+  fetchSetlists()
+  liveTimer = setInterval(() => {
+    currentTime.value = Date.now()
+  }, 30000)
+})
+
+onUnmounted(() => {
+  if (liveTimer) clearInterval(liveTimer)
+})
+
+// Helper untuk menghitung timestamp pertunjukan
+const getShowTimestamp = (dateVal?: string, timeVal?: string): number => {
+  if (!dateVal) return 0
+  try {
+    const d = new Date(dateVal)
+    if (!isNaN(d.getTime())) {
+      let hours = 19
+      let minutes = 0
+      if (timeVal) {
+        const match = timeVal.match(/(\d{1,2}):(\d{2})/)
+        if (match) {
+          hours = parseInt(match[1], 10)
+          minutes = parseInt(match[2], 10)
+        }
+      }
+      const year = d.getFullYear()
+      const month = d.getMonth()
+      const date = d.getDate()
+      return new Date(year, month, date, hours, minutes, 0).getTime()
+    }
+  } catch {}
+  return 0
+}
+
+// Pertunjukan yang sedang aktif / live:
+// Muncul 10 menit sebelum jam show (start - 10 menit)
+// Berlangsung hingga 2 jam 30 menit setelah jam show (start + 2.5 jam)
+const activeLiveShow = computed(() => {
+  const now = currentTime.value
+  const TEN_MINUTES = 10 * 60 * 1000
+  const TWO_AND_HALF_HOURS = 2.5 * 60 * 60 * 1000 // 150 menit
+
+  const active = appwriteShows.value.find(s => {
+    const startTs = getShowTimestamp(s.date, s.time)
+    if (!startTs) return false
+    const windowStart = startTs - TEN_MINUTES
+    const windowEnd = startTs + TWO_AND_HALF_HOURS
+    return now >= windowStart && now <= windowEnd
+  })
+
+  if (active) {
+    const related = setlists.value.find(
+      set => set.$id === active.setlist_id || String(set.id) === String(active.setlist_id)
+    )
+    const formattedTime = active.time && active.time.includes(':')
+      ? `${active.time.slice(0, 5)} WIB`
+      : (active.time || '19:00 WIB')
+    const startTs = getShowTimestamp(active.date, active.time)
+
+    return {
+      id: active.$id || active.id,
+      title: related?.title_id || 'Pertunjukan Teater',
+      time: formattedTime,
+      isLiveNow: now >= startTs
+    }
+  }
+
+  return null
+})
+
+const navItems = computed<NavItem[]>(() => [
   {
     label: 'Home',
     to: '/',
@@ -31,7 +117,7 @@ const navItems: NavItem[] = [
     label: 'Stream',
     to: '/stream',
     icon: 'i-lucide-radio',
-    badge: 'LIVE',
+    badge: activeLiveShow.value ? 'LIVE' : null,
     description: 'Siaran langsung panggung teater'
   },
   {
@@ -48,7 +134,7 @@ const navItems: NavItem[] = [
     badge: null,
     description: 'Jadwal panggung mendatang'
   }
-]
+])
 
 const otherNavItems: NavItem[] = [
   {
@@ -159,21 +245,26 @@ const handleLogout = async () => {
           />
         </div>
 
-        <!-- Live Show Status Card -->
+        <!-- Live Show Status Card (Hanya muncul jika ada show aktif: 10 menit sebelum s/d 2.5 jam setelah jam show) -->
         <NuxtLink
+          v-if="activeLiveShow"
           to="/stream"
           class="mt-5 p-3 rounded-xl bg-primary/5 hover:bg-primary/10 border border-primary/20 flex items-center gap-3 transition-colors block"
           @click="isMobileOpen = false"
         >
-          <span class="relative flex h-2.5 w-2.5">
+          <span class="relative flex h-2.5 w-2.5 shrink-0">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
             <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
           </span>
-          <div class="text-xs flex-1">
-            <div class="font-bold text-neutral-900 dark:text-white leading-none">Live Show Sekarang</div>
-            <div class="text-neutral-500 dark:text-neutral-400 text-[11px] mt-0.5">Aturan Anti Cinta &bull; 19:00 WIB</div>
+          <div class="text-xs flex-1 min-w-0">
+            <div class="font-bold text-neutral-900 dark:text-white leading-none truncate">
+              {{ activeLiveShow.isLiveNow ? 'Live Show Sekarang' : 'Segera Dimulai' }}
+            </div>
+            <div class="text-neutral-500 dark:text-neutral-400 text-[11px] mt-0.5 truncate">
+              {{ activeLiveShow.title }} &bull; {{ activeLiveShow.time }}
+            </div>
           </div>
-          <UIcon name="i-lucide-chevron-right" class="w-4 h-4 text-primary" />
+          <UIcon name="i-lucide-chevron-right" class="w-4 h-4 text-primary shrink-0" />
         </NuxtLink>
       </div>
 
