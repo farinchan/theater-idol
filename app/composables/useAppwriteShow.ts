@@ -1,4 +1,4 @@
-import { tablesDB, ID } from '~/appwrite'
+import { tablesDB, databases, ID } from '~/appwrite'
 
 export interface ShowItem {
   $id?: string
@@ -58,14 +58,25 @@ export const useAppwriteShow = () => {
   }
 
   const fetchShows = async () => {
-    if (!import.meta.client) return
     isLoading.value = true
     appwriteError.value = null
     appwriteNotice.value = null
 
     try {
-      const res = await tablesDB.listRows(dbId.value, showTableId.value)
-      const mapped: ShowItem[] = (res.rows || []).map((row: any) => ({
+      let rawRows: any[] = []
+      try {
+        const res = await tablesDB.listRows(dbId.value, showTableId.value)
+        rawRows = res.rows || []
+      } catch (tablesErr: any) {
+        try {
+          const docRes = await databases.listDocuments(dbId.value, showTableId.value)
+          rawRows = docRes.documents || []
+        } catch {
+          throw tablesErr
+        }
+      }
+
+      const mapped: ShowItem[] = rawRows.map((row: any) => ({
         $id: row.$id,
         id: row.$id,
         setlist_id: row.setlist_id || (typeof row.setlist === 'string' ? row.setlist : row.setlist?.$id) || '',
@@ -77,10 +88,14 @@ export const useAppwriteShow = () => {
         $createdAt: row.$createdAt
       }))
       shows.value = mapped
-      saveLocalCache(mapped)
+      if (import.meta.client) {
+        saveLocalCache(mapped)
+      }
     } catch (err: any) {
-      const cached = loadLocalCache()
-      if (cached.length > 0) shows.value = cached
+      if (import.meta.client) {
+        const cached = loadLocalCache()
+        if (cached.length > 0) shows.value = cached
+      }
       if (err.code === 404) {
         appwriteNotice.value = 'Data jadwal sementara disimpan secara lokal.'
       } else {
@@ -115,12 +130,15 @@ export const useAppwriteShow = () => {
         lineup: (data.lineup || '').trim()
       }
 
+      const permissions = ['read("any")', 'update("any")', 'delete("any")']
+
       try {
         const rowRes = await tablesDB.createRow(
           dbId.value,
           showTableId.value,
           newId,
-          payload
+          payload,
+          permissions
         )
         const newItem: ShowItem = {
           $id: rowRes.$id,
@@ -134,7 +152,9 @@ export const useAppwriteShow = () => {
           $createdAt: rowRes.$createdAt
         }
         shows.value.unshift(newItem)
-        saveLocalCache(shows.value)
+        if (import.meta.client) {
+          saveLocalCache(shows.value)
+        }
         return { success: true, item: newItem }
       } catch (err: any) {
         // Fallback local save if remote issue

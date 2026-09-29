@@ -635,8 +635,8 @@ watch([isAuthLoading, isInitialized, user], () => {
             :key="item.$id || item.id"
             class="group rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden shadow-xs hover:shadow-md transition-all duration-300 flex flex-col"
           >
-            <!-- Poster Foto Setlist -->
-            <div class="relative aspect-4/3 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+            <!-- Poster Foto Setlist (Rasio 16:9) -->
+            <div class="relative aspect-video overflow-hidden bg-neutral-100 dark:bg-neutral-800">
               <img
                 v-if="item.image_url"
                 :src="item.image_url"
@@ -904,8 +904,8 @@ watch([isAuthLoading, isInitialized, user], () => {
               @dragleave.prevent="isSetlistDragging = false"
               @drop.prevent="handleSetlistDrop"
             >
-              <!-- Image Preview Box -->
-              <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-xl bg-neutral-200 dark:bg-neutral-700 overflow-hidden flex-shrink-0 flex items-center justify-center border border-white dark:border-neutral-600 shadow-xs">
+              <!-- Image Preview Box (Rasio 16:9) -->
+              <div class="w-36 sm:w-44 aspect-video rounded-xl bg-neutral-200 dark:bg-neutral-700 overflow-hidden flex-shrink-0 flex items-center justify-center border border-white dark:border-neutral-600 shadow-xs">
                 <img
                   v-if="setlistForm.image_preview"
                   :src="setlistForm.image_preview"
@@ -954,7 +954,7 @@ watch([isAuthLoading, isInitialized, user], () => {
                 </div>
 
                 <p class="text-[11px] text-neutral-400 dark:text-neutral-500 leading-snug">
-                  Tarik gambar ke sini atau klik pilih. Format file yang didukung: JPG, PNG, atau WebP.
+                  Tarik gambar ke sini atau klik pilih. Format: JPG, PNG, WebP (Rasio 16:9 disarankan).
                 </p>
               </div>
             </div>

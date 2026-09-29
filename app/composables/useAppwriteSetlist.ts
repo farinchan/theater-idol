@@ -83,7 +83,6 @@ export const useAppwriteSetlist = () => {
 
   // Fetch setlists from Appwrite TablesDB (with Databases fallback)
   const fetchSetlists = async () => {
-    if (!import.meta.client) return
     isLoading.value = true
     appwriteError.value = null
     appwriteNotice.value = null
@@ -103,7 +102,9 @@ export const useAppwriteSetlist = () => {
         }))
 
         setlists.value = mapped
-        saveLocalCache(mapped)
+        if (import.meta.client) {
+          saveLocalCache(mapped)
+        }
         return
       } catch (tablesErr: any) {
         // If not found in TablesDB, try classic Databases Documents as fallback
@@ -120,7 +121,9 @@ export const useAppwriteSetlist = () => {
           }))
 
           setlists.value = mapped
-          saveLocalCache(mapped)
+          if (import.meta.client) {
+            saveLocalCache(mapped)
+          }
           return
         } catch {
           // Rethrow the primary TablesDB error to handle below
@@ -128,9 +131,10 @@ export const useAppwriteSetlist = () => {
         }
       }
     } catch (err: any) {
-      // If table or database does not exist yet (404), use local cache with clear guidance
-      const cached = loadLocalCache()
-      setlists.value = cached
+      if (import.meta.client) {
+        const cached = loadLocalCache()
+        if (cached.length > 0) setlists.value = cached
+      }
       if (err.code === 404) {
         appwriteNotice.value = `Data sementara disimpan secara lokal.`
       } else {
