@@ -134,11 +134,7 @@ const handlePaymentSubmit = () => {
     <!-- Header Section -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-6">
       <div>
-        <div class="inline-flex items-center gap-2 text-xs font-bold text-primary tracking-wide uppercase">
-          <UIcon name="i-lucide-credit-card" class="w-3.5 h-3.5" />
-          Menu Lainnya &bull; Layanan Fansite
-        </div>
-        <h1 class="text-2xl sm:text-3xl font-black tracking-tight mt-1 flex items-center gap-3">
+        <h1 class="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3">
           <UIcon name="i-lucide-wallet" class="w-8 h-8 text-primary" />
           Pembayaran & Transaksi Fans
         </h1>
