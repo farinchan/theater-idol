@@ -30,6 +30,7 @@
     "@tiptap/suggestion": "^3.31.3",
     "@tiptap/vue-3": "^3.31.3",
     "appwrite": "^28.1.0",
+    "hls.js": "^1.7.3",
     "nuxt": "^4.5.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
