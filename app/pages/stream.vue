@@ -1,16 +1,56 @@
 <script setup lang="ts">
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import HlsPlayer from '~/components/HlsPlayer.vue'
+import { useAppwriteLiveChat } from '~/composables/useAppwriteLiveChat'
+import { useAppwriteAuth } from '~/composables/useAppwriteAuth'
 
 const config = useRuntimeConfig()
 const streamUrl = computed(() => (config.public.streamUrl as string) || '')
 
+// Realtime Live Chat State
+const {
+  messages,
+  isConnected,
+  isSubscribed,
+  isLoading: isChatLoading,
+  isSending,
+  currentSenderName,
+  isLoggedIn,
+  cooldownRemaining,
+  chatError,
+  initNickname,
+  fetchMessages,
+  subscribeToChat,
+  unsubscribe: unsubscribeLiveChat,
+  sendMessage: sendLiveChatMessage
+} = useAppwriteLiveChat()
+
+const { isAdmin } = useAppwriteAuth()
+
+const chatContainerRef = ref<HTMLDivElement | null>(null)
 const chatInput = ref('')
-const liveChatMessages = ref([
-  { id: 1, user: 'Rian_OshiFreya', time: '19:24', text: 'Freya center Faint auranya gokil banget malam ini! 🔥' },
-  { id: 2, user: 'WotaJakarta', time: '19:25', text: 'Koreografi unit song-nya makin sinkron dan rapi!' },
-  { id: 3, user: 'ChristyFansID', time: '19:26', text: 'Hai! Hai! Semangat semuanya member JKT48! ❤️' },
-  { id: 4, user: 'TeaterLover', time: '19:27', text: 'Kualitas video 1080p-nya jernih banget, audionya juga bening.' }
-])
+
+// Strategi 3: Kunci live chat di luar jam show (kecuali jika admin)
+const isChatLocked = computed(() => {
+  if (isAdmin.value) return false
+  return !activeLiveShow.value
+})
+
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (chatContainerRef.value) {
+      chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight
+    }
+  })
+}
+
+// Auto-scroll saat ada pesan chat baru masuk via Realtime
+watch(
+  () => messages.value.length,
+  () => {
+    scrollToBottom()
+  }
+)
 
 // Hubungkan ke data pertunjukan & setlist dari database Appwrite
 const { shows: appwriteShows, fetchShows } = useAppwriteShow()
@@ -32,10 +72,18 @@ onMounted(() => {
   liveTimer = setInterval(() => {
     currentTime.value = Date.now()
   }, 30000)
+
+  // Inisialisasi Realtime Live Chat
+  initNickname()
+  fetchMessages().then(() => {
+    scrollToBottom()
+  })
+  subscribeToChat()
 })
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
   if (liveTimer) clearInterval(liveTimer)
+  unsubscribeLiveChat()
 })
 
 // Helper untuk menghitung timestamp pertunjukan dari tanggal dan jam
@@ -166,15 +214,19 @@ const nextUpcomingShow = computed(() => {
   return null
 })
 
-const sendChatMessage = () => {
+const handleSendMessage = async () => {
+  if (!isLoggedIn.value || isChatLocked.value) return
+  if (cooldownRemaining.value > 0 || isSending.value) return
   if (!chatInput.value.trim()) return
-  liveChatMessages.value.push({
-    id: Date.now(),
-    user: 'Anda',
-    time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-    text: chatInput.value.trim()
-  })
+
+  const text = chatInput.value
   chatInput.value = ''
+  const res = await sendLiveChatMessage(text, activeLiveShow.value?.id, !!activeLiveShow.value)
+  if (res.success) {
+    scrollToBottom()
+  } else {
+    chatInput.value = text
+  }
 }
 </script>
 
@@ -194,7 +246,7 @@ const sendChatMessage = () => {
     </div>
 
     <!-- Main Live Stream Grid (Player + Chat) -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
       <!-- Video Player & Controls Area -->
       <div class="lg:col-span-2 space-y-4">
         <!-- Live Player Component -->
@@ -298,49 +350,207 @@ const sendChatMessage = () => {
       </div>
 
       <!-- Live Chat Column -->
-      <div class="flex flex-col">
+      <div class="flex flex-col h-[420px] sm:h-[450px] lg:h-[450px]">
         <!-- Live Chat Card -->
-        <UCard class="flex flex-col h-[520px] lg:h-full">
+        <UCard
+          class="flex flex-col h-full"
+          :ui="{
+            root: 'flex flex-col h-full',
+            header: 'p-3.5 sm:p-4 flex-shrink-0 border-b border-neutral-100 dark:border-neutral-800',
+            body: 'flex-1 flex flex-col min-h-0 p-3 sm:p-4 overflow-hidden',
+            footer: 'mt-auto p-3 sm:p-4 border-t border-neutral-100 dark:border-neutral-800 flex-shrink-0'
+          }"
+        >
           <template #header>
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2 font-bold text-sm">
+              <div class="flex items-center gap-2">
                 <UIcon name="i-lucide-messages-square" class="w-4 h-4 text-primary" />
-                <span>Live Chat Teater</span>
+                <span class="font-bold text-sm">Live Chat Teater</span>
               </div>
-              <UBadge color="primary" variant="subtle" size="xs">Aktif</UBadge>
+
+              <!-- Realtime Connection Status & User Display (Read-Only) -->
+              <div class="flex items-center gap-2">
+                <UBadge
+                  :color="isConnected ? 'success' : 'neutral'"
+                  variant="subtle"
+                  size="xs"
+                  class="flex items-center gap-1.5 font-bold"
+                >
+                  <span
+                    class="w-1.5 h-1.5 rounded-full"
+                    :class="isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-400'"
+                  />
+                  <span>{{ isConnected ? 'Realtime' : 'Menghubungkan' }}</span>
+                </UBadge>
+
+                <!-- Sender Name / Login Status -->
+                <div
+                  v-if="isLoggedIn"
+                  class="flex items-center gap-1.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-md"
+                  :title="`Pengirim: ${currentSenderName}`"
+                >
+                  <UIcon name="i-lucide-user" class="w-3.5 h-3.5 text-neutral-400" />
+                  <span class="max-w-[90px] truncate">{{ currentSenderName }}</span>
+                </div>
+                <UButton
+                  v-else
+                  to="/login"
+                  variant="ghost"
+                  color="neutral"
+                  size="xs"
+                  icon="i-lucide-log-in"
+                  label="Masuk"
+                  class="text-[11px] font-bold cursor-pointer"
+                />
+              </div>
             </div>
           </template>
 
-          <!-- Chat List -->
-          <div class="flex-1 overflow-y-auto space-y-3 pr-1 text-xs">
+          <!-- Chat List Container -->
+          <div
+            ref="chatContainerRef"
+            class="flex-1 overflow-y-auto space-y-2.5 pr-1 text-xs scroll-smooth"
+          >
+            <!-- Loading indicator -->
+            <div v-if="isChatLoading && messages.length === 0" class="py-8 text-center text-neutral-400 space-y-2">
+              <UIcon name="i-lucide-loader-2" class="w-5 h-5 mx-auto animate-spin text-primary" />
+              <p class="text-[11px]">Menghubungkan ke live chat...</p>
+            </div>
+
+            <!-- Messages list -->
             <div
-              v-for="msg in liveChatMessages"
-              :key="msg.id"
-              class="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-100 dark:border-neutral-800"
+              v-for="msg in messages"
+              :key="msg.$id || msg.id"
+              :class="[
+                'p-2.5 rounded-xl border transition-all text-xs',
+                msg.user_name === currentSenderName
+                  ? 'bg-primary/5 dark:bg-primary/10 border-primary/20 ml-2'
+                  : 'bg-neutral-50 dark:bg-neutral-800/60 border-neutral-100 dark:border-neutral-800 mr-2'
+              ]"
             >
-              <div class="flex items-center justify-between font-semibold mb-1">
-                <span class="text-primary font-bold">{{ msg.user }}</span>
-                <span class="text-[10px] text-neutral-400">{{ msg.time }}</span>
+              <div class="flex items-center justify-between font-semibold mb-1 gap-2">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <!-- User Avatar Initial -->
+                  <div
+                    class="w-4 h-4 rounded-full flex items-center justify-center font-bold text-[9px] flex-shrink-0"
+                    :class="msg.is_admin ? 'bg-amber-500 text-white' : msg.user_name === currentSenderName ? 'bg-primary text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300'"
+                  >
+                    {{ (msg.user_name || 'W').charAt(0).toUpperCase() }}
+                  </div>
+
+                  <span
+                    :class="[
+                      'truncate font-bold text-[11px]',
+                      msg.is_admin ? 'text-amber-500' : msg.user_name === currentSenderName ? 'text-primary' : 'text-neutral-800 dark:text-neutral-200'
+                    ]"
+                  >
+                    {{ msg.user_name }}
+                  </span>
+
+                  <!-- Staff/Admin badge -->
+                  <span
+                    v-if="msg.is_admin"
+                    class="text-[9px] font-bold bg-amber-500/20 text-amber-500 px-1.5 py-0.2 rounded font-mono uppercase"
+                  >
+                    STAFF
+                  </span>
+
+                  <!-- Anda badge -->
+                  <span
+                    v-else-if="msg.user_name === currentSenderName"
+                    class="text-[9px] font-bold bg-primary/20 text-primary px-1.5 py-0.2 rounded"
+                  >
+                    Anda
+                  </span>
+                </div>
+
+                <div class="flex items-center gap-1 text-[10px] text-neutral-400 flex-shrink-0">
+                  <span>{{ msg.time }}</span>
+                  <UIcon
+                    v-if="msg.isOptimistic"
+                    name="i-lucide-clock"
+                    class="w-3 h-3 text-neutral-400 animate-spin"
+                    title="Mengirim..."
+                  />
+                </div>
               </div>
-              <p class="text-neutral-700 dark:text-neutral-300 leading-relaxed">{{ msg.text }}</p>
+
+              <p class="text-neutral-700 dark:text-neutral-300 leading-relaxed break-words pl-5.5">
+                {{ msg.message }}
+              </p>
             </div>
           </div>
 
           <template #footer>
-            <form class="flex items-center gap-2" @submit.prevent="sendChatMessage">
-              <UInput
-                v-model="chatInput"
-                placeholder="Kirim chant atau pesan..."
-                size="sm"
-                class="flex-1"
-              />
+            <!-- Jika belum login: Prompt masuk akun -->
+            <div
+              v-if="!isLoggedIn"
+              class="flex items-center justify-between gap-2.5 p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/60 dark:border-neutral-700/60"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <UIcon name="i-lucide-lock" class="w-4 h-4 text-primary flex-shrink-0" />
+                <span class="text-xs text-neutral-600 dark:text-neutral-300 font-medium truncate">
+                  Masuk untuk kirim chat
+                </span>
+              </div>
               <UButton
-                type="submit"
+                to="/login"
                 color="primary"
-                size="sm"
-                icon="i-lucide-send"
+                size="xs"
+                icon="i-lucide-log-in"
+                label="Masuk"
+                class="cursor-pointer font-bold flex-shrink-0"
               />
-            </form>
+            </div>
+
+            <!-- Strategi 3: Jika di luar jam pertunjukan: Chat terkunci (kecuali admin) -->
+            <div
+              v-else-if="isChatLocked"
+              class="flex items-center gap-2 p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/60 dark:border-neutral-700/60 text-xs text-neutral-600 dark:text-neutral-400"
+            >
+              <UIcon name="i-lucide-clock" class="w-4 h-4 text-primary flex-shrink-0" />
+              <span class="truncate">Live chat dibuka saat pertunjukan teater berlangsung</span>
+            </div>
+
+            <!-- Strategi 1 & 4: Form kirim pesan chat dengan slow mode & batas karakter -->
+            <div v-else class="space-y-1.5 w-full">
+              <div v-if="chatError" class="text-[11px] text-red-500 font-medium px-1 flex items-center gap-1">
+                <UIcon name="i-lucide-alert-circle" class="w-3.5 h-3.5 flex-shrink-0" />
+                <span>{{ chatError }}</span>
+              </div>
+
+              <form class="flex items-center gap-2" @submit.prevent="handleSendMessage">
+                <div class="relative flex-1">
+                  <UInput
+                    v-model="chatInput"
+                    :placeholder="cooldownRemaining > 0 ? `Slow mode: tunggu ${cooldownRemaining}s...` : 'Tulis pesan live chat (maks 150)...'"
+                    size="sm"
+                    class="w-full"
+                    :maxlength="150"
+                    :disabled="isSending || cooldownRemaining > 0"
+                    @keyup.enter="handleSendMessage"
+                  />
+                  <span
+                    v-if="chatInput.length > 100"
+                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-neutral-400 pointer-events-none"
+                  >
+                    {{ chatInput.length }}/150
+                  </span>
+                </div>
+                <UButton
+                  type="submit"
+                  :color="cooldownRemaining > 0 ? 'neutral' : 'primary'"
+                  :variant="cooldownRemaining > 0 ? 'soft' : 'solid'"
+                  size="sm"
+                  :icon="cooldownRemaining > 0 ? 'i-lucide-timer' : 'i-lucide-send'"
+                  :label="cooldownRemaining > 0 ? `${cooldownRemaining}s` : ''"
+                  :disabled="cooldownRemaining > 0 || isSending || !chatInput.trim()"
+                  :loading="isSending"
+                  class="cursor-pointer font-bold flex-shrink-0"
+                  :title="cooldownRemaining > 0 ? `Tunggu ${cooldownRemaining} detik` : 'Kirim pesan'"
+                />
+              </form>
+            </div>
           </template>
         </UCard>
       </div>

@@ -14,7 +14,8 @@ export default defineNuxtConfig({
       appwriteTableSetlistId: process.env.APPWRITE_TABLE_SETLIST_ID || process.env.APPWRITE_COLLECTION_SETLIST_ID || '6abacdde002ba14e3aa8',
       appwriteCollectionSetlistId: process.env.APPWRITE_COLLECTION_SETLIST_ID || process.env.APPWRITE_TABLE_SETLIST_ID || '6abacdde002ba14e3aa8',
       appwriteBucketId: process.env.APPWRITE_BUCKET_ID || 'setlist-photos',
-      appwriteTableShowId: process.env.APPWRITE_TABLE_SHOW_ID || 'shows'
+      appwriteTableShowId: process.env.APPWRITE_TABLE_SHOW_ID || 'shows',
+      appwriteTableChatId: process.env.APPWRITE_TABLE_CHAT_ID || process.env.APPWRITE_COLLECTION_CHAT_ID || 'live_chat'
     }
   }
 })
