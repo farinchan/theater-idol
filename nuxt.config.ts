@@ -3,7 +3,14 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   modules: ['@nuxt/ui'],
-  css: ['~/assets/css/main.css'],
+  css: ['plyr/dist/plyr.css', '~/assets/css/main.css'],
+  app: {
+    head: {
+      meta: [
+        { name: 'referrer', content: 'strict-origin-when-cross-origin' }
+      ]
+    }
+  },
   runtimeConfig: {
     public: {
       appName: process.env.APP_NAME || 'Pekerja48',

@@ -9,6 +9,7 @@ export interface ShowItem {
   time: string // Format HH:mm (e.g. 19:00)
   description?: string
   lineup?: string
+  replay_url?: string
   $createdAt?: string
 }
 
@@ -85,6 +86,7 @@ export const useAppwriteShow = () => {
         time: row.time || '',
         description: row.description || '',
         lineup: row.lineup || '',
+        replay_url: row.replay_url || '',
         $createdAt: row.$createdAt
       }))
       shows.value = mapped
@@ -112,6 +114,7 @@ export const useAppwriteShow = () => {
     time: string
     description?: string
     lineup?: string
+    replay_url?: string
   }) => {
     isActionLoading.value = true
     appwriteError.value = null
@@ -120,6 +123,7 @@ export const useAppwriteShow = () => {
       const newId = ID.unique()
       const cleanTime = (data.time || '19:00').trim().slice(0, 5)
       const isoDate = formatIsoDatetime(data.date, cleanTime)
+      const cleanReplayUrl = (data.replay_url || '').trim()
 
       const payload = {
         setlist: data.setlist_id,
@@ -127,7 +131,8 @@ export const useAppwriteShow = () => {
         date: isoDate,
         time: cleanTime,
         description: (data.description || '').trim(),
-        lineup: (data.lineup || '').trim()
+        lineup: (data.lineup || '').trim(),
+        replay_url: cleanReplayUrl || null
       }
 
       const permissions = ['read("any")', 'update("any")', 'delete("any")']
@@ -149,6 +154,7 @@ export const useAppwriteShow = () => {
           time: rowRes.time || payload.time,
           description: rowRes.description || payload.description,
           lineup: rowRes.lineup || payload.lineup,
+          replay_url: rowRes.replay_url || cleanReplayUrl || undefined,
           $createdAt: rowRes.$createdAt
         }
         shows.value.unshift(newItem)
@@ -162,6 +168,7 @@ export const useAppwriteShow = () => {
           $id: `local-${Date.now()}`,
           id: `local-${Date.now()}`,
           ...payload,
+          replay_url: cleanReplayUrl || undefined,
           $createdAt: new Date().toISOString()
         }
         shows.value.unshift(localItem)
@@ -184,6 +191,7 @@ export const useAppwriteShow = () => {
       time: string
       description?: string
       lineup?: string
+      replay_url?: string
     }
   ) => {
     isActionLoading.value = true
@@ -192,6 +200,7 @@ export const useAppwriteShow = () => {
     try {
       const cleanTime = (data.time || '19:00').trim().slice(0, 5)
       const isoDate = formatIsoDatetime(data.date, cleanTime)
+      const cleanReplayUrl = (data.replay_url || '').trim()
 
       const payload = {
         setlist: data.setlist_id,
@@ -199,7 +208,8 @@ export const useAppwriteShow = () => {
         date: isoDate,
         time: cleanTime,
         description: (data.description || '').trim(),
-        lineup: (data.lineup || '').trim()
+        lineup: (data.lineup || '').trim(),
+        replay_url: cleanReplayUrl || null
       }
 
       try {
@@ -210,7 +220,8 @@ export const useAppwriteShow = () => {
       if (idx !== -1) {
         shows.value[idx] = {
           ...shows.value[idx],
-          ...payload
+          ...payload,
+          replay_url: cleanReplayUrl || ''
         }
         saveLocalCache(shows.value)
       }

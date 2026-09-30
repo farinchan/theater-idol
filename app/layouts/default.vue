@@ -124,7 +124,7 @@ const navItems = computed<NavItem[]>(() => [
     label: 'Replay',
     to: '/replay',
     icon: 'i-lucide-play-circle',
-    badge: 'VOD',
+    badge: null,
     description: 'Arsip rekaman pertunjukan'
   },
   {

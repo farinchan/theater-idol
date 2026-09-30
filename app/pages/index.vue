@@ -236,7 +236,7 @@ const recentReplays = [
               Replay Pilihan
             </h3>
             <NuxtLink to="/replay" class="text-xs font-bold text-primary hover:underline flex items-center gap-1">
-              <span>Katalog VOD</span>
+              <span>Katalog Replay</span>
               <UIcon name="i-lucide-chevron-right" class="w-3.5 h-3.5" />
             </NuxtLink>
           </div>

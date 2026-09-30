@@ -233,7 +233,8 @@ const showForm = reactive({
   date: '',
   time: '19:00',
   description: '',
-  lineupText: ''
+  lineupText: '',
+  replay_url: ''
 })
 
 // Helper: Format tanggal ke Bahasa Indonesia (Contoh: "Minggu, 4 Oktober 2026")
@@ -338,7 +339,8 @@ const filteredShows = computed(() => {
       formattedDate.includes(query) ||
       show.time.toLowerCase().includes(query) ||
       (show.description && show.description.toLowerCase().includes(query)) ||
-      (show.lineup && show.lineup.toLowerCase().includes(query))
+      (show.lineup && show.lineup.toLowerCase().includes(query)) ||
+      (show.replay_url && show.replay_url.toLowerCase().includes(query))
     )
   })
 })
@@ -357,6 +359,7 @@ const openCreateShowModal = () => {
   showForm.time = '19:00'
   showForm.description = ''
   showForm.lineupText = ''
+  showForm.replay_url = ''
   isShowModalOpen.value = true
 }
 
@@ -368,6 +371,7 @@ const openEditShowModal = (show: ShowItem) => {
   showForm.time = getTimeInputValue(show.time, show.date)
   showForm.description = show.description || ''
   showForm.lineupText = show.lineup || ''
+  showForm.replay_url = show.replay_url || ''
   isShowModalOpen.value = true
 }
 
@@ -387,7 +391,8 @@ const handleSaveShow = async () => {
       date: showForm.date.trim(),
       time: showForm.time.trim() || '19:00 WIB',
       description: showForm.description.trim(),
-      lineup: showForm.lineupText.trim()
+      lineup: showForm.lineupText.trim(),
+      replay_url: showForm.replay_url.trim()
     })
 
     if (res.success) {
@@ -404,7 +409,8 @@ const handleSaveShow = async () => {
       date: showForm.date.trim(),
       time: showForm.time.trim(),
       description: showForm.description.trim(),
-      lineup: showForm.lineupText.trim()
+      lineup: showForm.lineupText.trim(),
+      replay_url: showForm.replay_url.trim()
     })
 
     if (res.success) {
@@ -773,6 +779,7 @@ watch([isAuthLoading, isInitialized, user], () => {
                   <th class="py-3.5 px-4">Tanggal & Waktu</th>
                   <th class="py-3.5 px-4">Deskripsi Ringkas</th>
                   <th class="py-3.5 px-4">Lineup Member</th>
+                  <th class="py-3.5 px-4">Replay URL</th>
                   <th class="py-3.5 px-4 text-right">Aksi</th>
                 </tr>
               </thead>
@@ -836,6 +843,35 @@ watch([isAuthLoading, isInitialized, user], () => {
                       <UIcon name="i-lucide-users" class="w-3.5 h-3.5" />
                       <span>{{ getLineupList(show.lineup).length }} Member</span>
                     </button>
+                  </td>
+
+                  <!-- 5. Replay URL (YouTube / MP4 / Stream) -->
+                  <td class="py-4 px-4 whitespace-nowrap">
+                    <div v-if="show.replay_url" class="flex items-center gap-1.5">
+                      <UBadge
+                        color="primary"
+                        variant="subtle"
+                        size="xs"
+                        class="font-mono text-[11px] flex items-center gap-1 max-w-[150px] truncate"
+                        :title="show.replay_url"
+                      >
+                        <UIcon name="i-lucide-play-circle" class="w-3 h-3 flex-shrink-0" />
+                        <span class="truncate">Video Replay</span>
+                      </UBadge>
+                      <UButton
+                        :to="`/replay/${show.$id || show.id}`"
+                        target="_blank"
+                        color="neutral"
+                        variant="ghost"
+                        size="xs"
+                        icon="i-lucide-external-link"
+                        title="Buka Halaman Replay"
+                        class="cursor-pointer"
+                      />
+                    </div>
+                    <span v-else class="text-xs text-neutral-400 italic">
+                      Belum ada
+                    </span>
                   </td>
 
                   <!-- 5. Aksi: Edit & Hapus -->
@@ -1166,6 +1202,26 @@ watch([isAuthLoading, isInitialized, user], () => {
               class="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white resize-none"
             />
             <p class="text-[10px] text-neutral-400">Tuliskan nama-nama member yang tampil dipisahkan dengan tanda koma.</p>
+          </div>
+
+          <!-- 6. URL Replay Show -->
+          <div class="space-y-1">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300">
+                URL Replay Show
+              </label>
+              <span class="text-[10px] text-neutral-400">Opsional</span>
+            </div>
+            <UInput
+              v-model="showForm.replay_url"
+              placeholder="https://.../video.mp4 atau https://.../stream.m3u8"
+              size="sm"
+              icon="i-lucide-play-circle"
+              class="w-full font-mono text-xs"
+            />
+            <p class="text-[11px] text-neutral-500">
+              Mendukung video MP4 (.mp4) dan stream HLS (.m3u8) beserta timeline kontrol durasi. Show yang sudah lewat dan terisi URL ini otomatis muncul di <strong>/replay</strong>.
+            </p>
           </div>
 
           <!-- Actions -->
