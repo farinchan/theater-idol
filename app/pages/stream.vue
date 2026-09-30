@@ -6,6 +6,7 @@ import { useAppwriteAuth } from '~/composables/useAppwriteAuth'
 
 const config = useRuntimeConfig()
 const streamUrl = computed(() => (config.public.streamUrl as string) || '')
+const { isStreamEnabled, streamNotice } = useSiteSettings()
 
 // Realtime Live Chat State
 const {
@@ -231,7 +232,46 @@ const handleSendMessage = async () => {
 </script>
 
 <template>
-  <div class="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl w-full mx-auto">
+  <!-- Screen Jika Fitur Stream Dinonaktifkan oleh Admin -->
+  <div v-if="!isStreamEnabled" class="p-8 sm:p-16 max-w-2xl mx-auto text-center space-y-6">
+    <div class="w-16 h-16 rounded-3xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto shadow-sm">
+      <UIcon name="i-lucide-radio" class="w-8 h-8" />
+    </div>
+    <div class="space-y-2">
+      <UBadge color="warning" variant="subtle" size="xs" class="font-bold">
+        FITUR DINONAKTIFKAN SEMENTARA
+      </UBadge>
+      <h2 class="text-2xl sm:text-3xl font-black text-neutral-900 dark:text-white">
+        Live Stream Sedang Ditutup
+      </h2>
+      <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
+        {{ streamNotice }}
+      </p>
+    </div>
+    <div class="flex items-center justify-center gap-3 pt-2">
+      <UButton
+        to="/"
+        color="primary"
+        variant="solid"
+        size="md"
+        icon="i-lucide-home"
+        label="Kembali ke Beranda"
+        class="font-bold rounded-xl"
+      />
+      <UButton
+        to="/jadwal"
+        color="neutral"
+        variant="outline"
+        size="md"
+        icon="i-lucide-calendar-days"
+        label="Lihat Jadwal Show"
+        class="font-bold rounded-xl"
+      />
+    </div>
+  </div>
+
+  <!-- Konten Utama Live Stream -->
+  <div v-else class="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl w-full mx-auto">
     <!-- Stream Page Header -->
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-6">
       <div>

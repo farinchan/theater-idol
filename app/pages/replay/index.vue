@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { appName } = useAppName()
+const { isReplayEnabled, replayNotice } = useSiteSettings()
 const { shows: appwriteShows, fetchShows, isLoading: isShowsLoading } = useAppwriteShow()
 const { setlists, fetchSetlists, isLoading: isSetlistsLoading } = useAppwriteSetlist()
 
@@ -171,7 +172,46 @@ const featuredReplay = computed(() => {
 </script>
 
 <template>
-  <div class="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl w-full mx-auto">
+  <!-- Screen Jika Fitur Replay Dinonaktifkan oleh Admin -->
+  <div v-if="!isReplayEnabled" class="p-8 sm:p-16 max-w-2xl mx-auto text-center space-y-6">
+    <div class="w-16 h-16 rounded-3xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto shadow-sm">
+      <UIcon name="i-lucide-play-circle" class="w-8 h-8" />
+    </div>
+    <div class="space-y-2">
+      <UBadge color="warning" variant="subtle" size="xs" class="font-bold">
+        FITUR DINONAKTIFKAN SEMENTARA
+      </UBadge>
+      <h2 class="text-2xl sm:text-3xl font-black text-neutral-900 dark:text-white">
+        Arsip Replay Sedang Ditutup
+      </h2>
+      <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
+        {{ replayNotice }}
+      </p>
+    </div>
+    <div class="flex items-center justify-center gap-3 pt-2">
+      <UButton
+        to="/"
+        color="primary"
+        variant="solid"
+        size="md"
+        icon="i-lucide-home"
+        label="Kembali ke Beranda"
+        class="font-bold rounded-xl"
+      />
+      <UButton
+        to="/jadwal"
+        color="neutral"
+        variant="outline"
+        size="md"
+        icon="i-lucide-calendar-days"
+        label="Lihat Jadwal Show"
+        class="font-bold rounded-xl"
+      />
+    </div>
+  </div>
+
+  <!-- Konten Katalog Replay -->
+  <div v-else class="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl w-full mx-auto">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-6">
       <div>

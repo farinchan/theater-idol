@@ -105,36 +105,49 @@ const activeLiveShow = computed(() => {
   return null
 })
 
-const navItems = computed<NavItem[]>(() => [
-  {
-    label: 'Home',
-    to: '/',
-    icon: 'i-lucide-home',
-    badge: null,
-    description: 'Beranda & ringkasan teater'
-  },
-  {
-    label: 'Stream',
-    to: '/stream',
-    icon: 'i-lucide-radio',
-    badge: activeLiveShow.value ? 'LIVE' : null,
-    description: 'Siaran langsung panggung teater'
-  },
-  {
-    label: 'Replay',
-    to: '/replay',
-    icon: 'i-lucide-play-circle',
-    badge: null,
-    description: 'Arsip rekaman pertunjukan'
-  },
-  {
+const { isStreamEnabled, isReplayEnabled } = useSiteSettings()
+
+const navItems = computed<NavItem[]>(() => {
+  const items: NavItem[] = [
+    {
+      label: 'Home',
+      to: '/',
+      icon: 'i-lucide-home',
+      badge: null,
+      description: 'Beranda & ringkasan teater'
+    }
+  ]
+
+  if (isStreamEnabled.value) {
+    items.push({
+      label: 'Stream',
+      to: '/stream',
+      icon: 'i-lucide-radio',
+      badge: activeLiveShow.value ? 'LIVE' : null,
+      description: 'Siaran langsung panggung teater'
+    })
+  }
+
+  if (isReplayEnabled.value) {
+    items.push({
+      label: 'Replay',
+      to: '/replay',
+      icon: 'i-lucide-play-circle',
+      badge: null,
+      description: 'Arsip rekaman pertunjukan'
+    })
+  }
+
+  items.push({
     label: 'Jadwal Show',
     to: '/jadwal',
     icon: 'i-lucide-calendar-days',
     badge: null,
     description: 'Jadwal panggung mendatang'
-  }
-])
+  })
+
+  return items
+})
 
 const otherNavItems: NavItem[] = [
   {
@@ -160,6 +173,13 @@ const adminNavItems: NavItem[] = [
     icon: 'i-lucide-calendar-cog',
     badge: null,
     description: 'Kelola jadwal & data pertunjukan'
+  },
+  {
+    label: 'Pengaturan Website',
+    to: '/admin/settings',
+    icon: 'i-lucide-settings',
+    badge: null,
+    description: 'Nama website, toggle stream & replay'
   }
 ]
 
@@ -531,8 +551,8 @@ const handleLogout = async () => {
             </div>
             <div class="flex items-center gap-4 flex-wrap text-xs">
               <NuxtLink to="/" class="hover:text-primary transition-colors">Home</NuxtLink>
-              <NuxtLink to="/stream" class="hover:text-primary transition-colors">Stream</NuxtLink>
-              <NuxtLink to="/replay" class="hover:text-primary transition-colors">Replay</NuxtLink>
+              <NuxtLink v-if="isStreamEnabled" to="/stream" class="hover:text-primary transition-colors">Stream</NuxtLink>
+              <NuxtLink v-if="isReplayEnabled" to="/replay" class="hover:text-primary transition-colors">Replay</NuxtLink>
               <NuxtLink to="/jadwal" class="hover:text-primary transition-colors">Jadwal Show</NuxtLink>
               <NuxtLink to="/pembayaran" class="hover:text-primary transition-colors">Pembayaran</NuxtLink>
               <NuxtLink to="/profile" class="hover:text-primary transition-colors">Profil</NuxtLink>

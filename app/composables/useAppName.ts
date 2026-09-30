@@ -1,7 +1,9 @@
 export const useAppName = () => {
+  const { appName: settingsAppName } = useSiteSettings()
   const config = useRuntimeConfig()
+
   const appName = computed(() => {
-    return (config.public.appName as string) || 'Pekerja48'
+    return settingsAppName.value || (config.public.appName as string) || 'Pekerja48'
   })
 
   return {
