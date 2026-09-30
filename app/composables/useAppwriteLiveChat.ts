@@ -36,7 +36,7 @@ const defaultSeedMessages: ChatMessage[] = [
     id: 3,
     user_name: 'ChristyFansID',
     time: '19:26',
-    message: 'Hai! Hai! Semangat semuanya member JKT48! ❤️',
+    message: 'Hai! Hai! Semangat semuanya! ❤️',
     is_admin: false
   },
   {

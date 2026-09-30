@@ -84,7 +84,7 @@ const defaultSchedules = [
     category: 'Regular Show',
     date: '2026-10-04T12:00:00.000Z',
     time: '19:00 WIB',
-    description: 'Pertunjukan malam penuh semangat dengan antusiasme chant penonton di Teater JKT48.',
+    description: 'Pertunjukan malam penuh semangat dengan antusiasme chant penonton di Teater.',
     lineup: [
       'Freya Jayawardana', 'Christy', 'Gracia', 'Zee',
       'Marsha', 'Feni', 'Gita', 'Muthe',

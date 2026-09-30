@@ -119,13 +119,13 @@ const replayShows = computed(() => {
 
       return {
         id: show.$id || String(show.id),
-        title: related?.title_id || 'Pertunjukan Teater JKT48',
+        title: related?.title_id || 'Pertunjukan Teater',
         originalTitle: related?.title_jp || '',
-        category: related?.title_id || 'Teater JKT48',
+        category: related?.title_id || 'Teater',
         date: formatIndonesianDate(show.date),
         time: formatIndonesianTime(show.time, show.date),
         timestamp: ts,
-        description: show.description || (related ? `Rekaman pertunjukan setlist ${related.title_id} yang dibawakan langsung dari panggung Teater JKT48.` : 'Rekaman arsip pertunjukan panggung Teater JKT48.'),
+        description: show.description || (related ? `Rekaman pertunjukan setlist ${related.title_id} yang dibawakan langsung dari panggung teater.` : 'Rekaman arsip pertunjukan panggung teater.'),
         lineup: lineupList,
         poster: related?.image_url || ytThumbnail,
         replay_url: show.replay_url,
@@ -356,7 +356,7 @@ const featuredReplay = computed(() => {
                 {{ item.date }}
               </span>
               <span class="text-[10px] uppercase font-bold text-neutral-400">
-                Teater JKT48
+                Teater
               </span>
             </div>
 

@@ -168,7 +168,7 @@ const activeLiveShow = computed(() => {
       time: formattedTime,
       startTs,
       isLiveNow,
-      description: active.description || (related ? `Pertunjukan setlist ${related.title_id} yang dibawakan langsung dari panggung Teater JKT48.` : 'Pertunjukan panggung teater langsung.'),
+      description: active.description || (related ? `Pertunjukan setlist ${related.title_id} yang dibawakan langsung dari panggung teater.` : 'Pertunjukan panggung teater langsung.'),
       lineup: lineupList,
       poster: related?.image_url || ''
     }
@@ -240,7 +240,7 @@ const handleSendMessage = async () => {
           Theater Live Stream
         </h1>
         <p class="text-neutral-500 dark:text-neutral-400 text-sm mt-1">
-          Siaran langsung pertunjukan panggung Teater JKT48 dengan multi-angle HD.
+          Siaran langsung pertunjukan panggung teater dengan multi-angle HD.
         </p>
       </div>
     </div>
@@ -471,7 +471,7 @@ const handleSendMessage = async () => {
                 Informasi Pertunjukan
               </span>
               <span class="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-700" />
-              <span class="text-xs text-neutral-500 font-medium">Teater JKT48</span>
+              <span class="text-xs text-neutral-500 font-medium">Teater</span>
             </div>
             <h2 class="text-2xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
               {{ activeLiveShow.title }}

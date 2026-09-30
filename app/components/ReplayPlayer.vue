@@ -416,7 +416,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-/* Kustomisasi Tema Plyr - Theater JKT48 Red Accent & Minimalisir Identitas YouTube */
+/* Kustomisasi Tema Plyr - Theater Red Accent */
 .theater-replay-container {
   --plyr-color-main: #D61515;
   --plyr-video-background: #000000;

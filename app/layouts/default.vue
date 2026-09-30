@@ -536,14 +536,10 @@ const handleLogout = async () => {
               <NuxtLink to="/jadwal" class="hover:text-primary transition-colors">Jadwal Show</NuxtLink>
               <NuxtLink to="/pembayaran" class="hover:text-primary transition-colors">Pembayaran</NuxtLink>
               <NuxtLink to="/profile" class="hover:text-primary transition-colors">Profil</NuxtLink>
-              <a href="https://jkt48.com" target="_blank" rel="noopener noreferrer" class="hover:text-primary transition-colors font-medium flex items-center gap-1 text-primary">
-                <span>Website Resmi JKT48</span>
-                <UIcon name="i-lucide-external-link" class="w-3 h-3" />
-              </a>
             </div>
           </div>
           <p class="text-[11px] text-neutral-400 dark:text-neutral-500 text-center sm:text-left leading-relaxed">
-            <strong>Disclaimer:</strong> {{ appName }} merupakan proyek komunitas penggemar dan <u>bukan website resmi</u> dari manajemen JKT48 (JOT). Seluruh hak cipta nama, lagu, setlist, dan materi pertunjukan tetap merupakan hak milik JKT48.
+            <strong>Disclaimer:</strong> {{ appName }} merupakan proyek komunitas penggemar dan <u>bukan website resmi</u> dari manajemen. Seluruh hak cipta nama, lagu, setlist, dan materi pertunjukan tetap merupakan hak milik pemegang hak cipta resmi.
           </p>
         </div>
       </footer>

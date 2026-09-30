@@ -253,7 +253,7 @@ const copyReplayLink = () => {
 
         <!-- Description -->
         <p class="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed max-w-4xl">
-          {{ currentShow.description || (relatedSetlist ? `Rekaman penuh pertunjukan setlist ${relatedSetlist.title_id} yang dibawakan langsung dari panggung Teater JKT48.` : 'Rekaman arsip pertunjukan panggung Teater JKT48.') }}
+          {{ currentShow.description || (relatedSetlist ? `Rekaman penuh pertunjukan setlist ${relatedSetlist.title_id} yang dibawakan langsung dari panggung teater.` : 'Rekaman arsip pertunjukan panggung teater.') }}
         </p>
 
         <!-- Lineup Member Section -->

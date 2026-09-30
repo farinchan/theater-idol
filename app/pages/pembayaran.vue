@@ -155,7 +155,7 @@ const handlePaymentSubmit = () => {
     <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs sm:text-sm flex items-start gap-3">
       <UIcon name="i-lucide-info" class="w-5 h-5 flex-shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
       <div>
-        <span class="font-bold">Pemberitahuan Penting:</span> Halaman pembayaran ini dikelola secara independen oleh komunitas fans untuk proyek dukungan penggemar (seitansai, gathering, dan pemeliharaan web fansite). Portal ini <u>tidak menjual tiket teater resmi JKT48</u>.
+        <span class="font-bold">Pemberitahuan Penting:</span> Halaman pembayaran ini dikelola secara independen oleh komunitas fans untuk proyek dukungan penggemar (seitansai, gathering, dan pemeliharaan web fansite). Portal ini <u>tidak menjual tiket teater resmi</u>.
       </div>
     </div>
 
@@ -365,11 +365,11 @@ const handlePaymentSubmit = () => {
           </p>
           <div class="pt-1">
             <a
-              href="mailto:support@fans-theaterjkt48.id"
+              href="mailto:support@pekerja48.id"
               class="inline-flex items-center gap-2 text-xs font-bold text-primary hover:underline"
             >
               <UIcon name="i-lucide-mail" class="w-4 h-4" />
-              support@fans-theaterjkt48.id
+              support@pekerja48.id
             </a>
           </div>
         </div>

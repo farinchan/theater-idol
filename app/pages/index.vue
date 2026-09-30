@@ -278,7 +278,7 @@ const recentReplays = [
             <UIcon name="i-lucide-sparkles" class="w-6 h-6" />
           </div>
           <div>
-            <h4 class="font-bold text-neutral-900 dark:text-white">Panggung Teater JKT48</h4>
+            <h4 class="font-bold text-neutral-900 dark:text-white">Panggung Teater</h4>
             <p class="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">
               Tempat bertemunya idola dan penggemar dalam pertunjukan panggung penuh energi, musik, dan koreografi setiap pekannya.
             </p>
@@ -287,13 +287,12 @@ const recentReplays = [
 
         <div class="flex items-center gap-2">
           <UButton
-            to="https://jkt48.com"
-            target="_blank"
+            to="/jadwal"
             color="primary"
             variant="outline"
             size="sm"
-            icon="i-lucide-external-link"
-            label="Situs Resmi JKT48.com"
+            icon="i-lucide-calendar"
+            label="Jadwal Pertunjukan"
           />
         </div>
       </section>
