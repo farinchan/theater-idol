@@ -50,7 +50,7 @@ const defaultSeedMessages: ChatMessage[] = [
 
 export const useAppwriteLiveChat = () => {
   const config = useRuntimeConfig()
-  const dbId = computed(() => (config.public.appwriteDatabaseId as string) || '6aba9a7300316352ddb0')
+  const dbId = computed(() => (config.public.appwriteDatabaseId as string) || '')
   const tableId = computed(() => (config.public.appwriteTableChatId as string) || 'live_chat')
 
   const { user, isAdmin } = useAppwriteAuth()

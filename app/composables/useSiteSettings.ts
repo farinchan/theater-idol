@@ -2,6 +2,10 @@ export interface SiteSettings {
   appName: string
   isStreamEnabled: boolean
   isReplayEnabled: boolean
+  isStreamRequireLogin: boolean
+  isReplayRequireLogin: boolean
+  isStreamRequirePremium: boolean
+  isReplayRequirePremium: boolean
   streamNotice?: string
   replayNotice?: string
   updatedAt?: string
@@ -12,6 +16,10 @@ export const useSiteSettings = () => {
     appName: 'Pekerja48',
     isStreamEnabled: true,
     isReplayEnabled: true,
+    isStreamRequireLogin: false,
+    isReplayRequireLogin: false,
+    isStreamRequirePremium: false,
+    isReplayRequirePremium: false,
     streamNotice: 'Fitur Live Stream saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.',
     replayNotice: 'Fitur Arsip Replay saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.',
     updatedAt: new Date().toISOString()
@@ -24,11 +32,15 @@ export const useSiteSettings = () => {
 
   const isStreamEnabled = computed(() => settings.value?.isStreamEnabled ?? true)
   const isReplayEnabled = computed(() => settings.value?.isReplayEnabled ?? true)
+  const isStreamRequireLogin = computed(() => settings.value?.isStreamRequireLogin ?? false)
+  const isReplayRequireLogin = computed(() => settings.value?.isReplayRequireLogin ?? false)
+  const isStreamRequirePremium = computed(() => settings.value?.isStreamRequirePremium ?? false)
+  const isReplayRequirePremium = computed(() => settings.value?.isReplayRequirePremium ?? false)
   const appName = computed(() => settings.value?.appName || 'Pekerja48')
   const streamNotice = computed(() => settings.value?.streamNotice || 'Fitur Live Stream sedang ditutup.')
   const replayNotice = computed(() => settings.value?.replayNotice || 'Fitur Arsip Replay sedang ditutup.')
 
-  // Memuat pengaturan dari API file server (/api/settings)
+  // Memuat pengaturan dari API server (/api/settings)
   const fetchSettings = async () => {
     isLoading.value = true
     try {
@@ -47,7 +59,7 @@ export const useSiteSettings = () => {
     }
   }
 
-  // Menyimpan pengaturan baru ke file server (/api/settings)
+  // Menyimpan pengaturan baru ke server (/api/settings)
   const saveSettings = async (newSettings: Partial<SiteSettings>) => {
     isSaving.value = true
     error.value = null
@@ -59,12 +71,12 @@ export const useSiteSettings = () => {
       })
       if (res && res.settings) {
         settings.value = res.settings
-        successNotice.value = 'Pengaturan berhasil disimpan ke data/settings.json!'
+        successNotice.value = 'Pengaturan berhasil disimpan ke Appwrite Database!'
         return { success: true, settings: res.settings }
       }
       return { success: false }
     } catch (err: any) {
-      const msg = err?.data?.statusMessage || err?.message || 'Gagal menyimpan pengaturan ke file.'
+      const msg = err?.data?.statusMessage || err?.message || 'Gagal menyimpan pengaturan.'
       error.value = msg
       return { success: false, error: msg }
     } finally {
@@ -76,6 +88,10 @@ export const useSiteSettings = () => {
     settings,
     isStreamEnabled,
     isReplayEnabled,
+    isStreamRequireLogin,
+    isReplayRequireLogin,
+    isStreamRequirePremium,
+    isReplayRequirePremium,
     appName,
     streamNotice,
     replayNotice,

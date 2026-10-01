@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const { appName } = useAppName()
-const { isReplayEnabled, replayNotice } = useSiteSettings()
+const { isReplayEnabled, isReplayRequireLogin, isReplayRequirePremium, replayNotice } = useSiteSettings()
+const { user, isPremium, isAdmin } = useAppwriteAuth()
 const { shows: appwriteShows, fetchShows, isLoading: isShowsLoading } = useAppwriteShow()
 const { setlists, fetchSetlists, isLoading: isSetlistsLoading } = useAppwriteSetlist()
 
@@ -206,6 +207,80 @@ const featuredReplay = computed(() => {
         icon="i-lucide-calendar-days"
         label="Lihat Jadwal Show"
         class="font-bold rounded-xl"
+      />
+    </div>
+  </div>
+
+  <!-- Screen Jika Akses Replay Memerlukan Login -->
+  <div v-else-if="(isReplayRequirePremium || isReplayRequireLogin) && !user" class="p-8 sm:p-16 max-w-md mx-auto text-center space-y-6">
+    <div class="w-16 h-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-sm">
+      <UIcon name="i-lucide-lock" class="w-8 h-8" />
+    </div>
+    <div class="space-y-2">
+      <UBadge color="primary" variant="subtle" size="xs" class="font-bold">
+        LOGIN DIPERLUKAN
+      </UBadge>
+      <h2 class="text-2xl font-black text-neutral-900 dark:text-white">
+        Akses Arsip Replay Terbatas
+      </h2>
+      <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
+        Katalog dan video rekaman pertunjukan teater hanya dapat diakses oleh pengguna yang telah masuk ke akun. Silakan masuk terlebih dahulu untuk menonton.
+      </p>
+    </div>
+    <div class="flex items-center justify-center gap-3 pt-2">
+      <UButton
+        to="/login"
+        color="primary"
+        variant="solid"
+        size="md"
+        icon="i-lucide-log-in"
+        label="Masuk ke Akun"
+        class="font-bold rounded-xl"
+      />
+      <UButton
+        to="/"
+        color="neutral"
+        variant="ghost"
+        size="md"
+        label="Kembali ke Beranda"
+        class="font-bold rounded-xl"
+      />
+    </div>
+  </div>
+
+  <!-- Screen Jika Akses Replay Khusus Member Premium -->
+  <div v-else-if="isReplayRequirePremium && !isPremium && !isAdmin" class="p-8 sm:p-16 max-w-md mx-auto text-center space-y-6">
+    <div class="w-16 h-16 rounded-3xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto shadow-sm">
+      <UIcon name="i-lucide-crown" class="w-8 h-8" />
+    </div>
+    <div class="space-y-2">
+      <UBadge color="warning" variant="subtle" size="xs" class="font-bold">
+        KHUSUS MEMBER PREMIUM
+      </UBadge>
+      <h2 class="text-2xl font-black text-neutral-900 dark:text-white">
+        Fitur Eksklusif Premium
+      </h2>
+      <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
+        Katalog video rekaman pertunjukan teater ini dikhususkan bagi Member Premium. Aktifkan paket langganan Anda untuk mendapatkan akses menonton seluruh video replay.
+      </p>
+    </div>
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+      <UButton
+        to="/pembayaran"
+        color="warning"
+        variant="solid"
+        size="md"
+        icon="i-lucide-crown"
+        label="Aktifkan Member Premium"
+        class="font-bold rounded-xl shadow-md w-full sm:w-auto justify-center"
+      />
+      <UButton
+        to="/"
+        color="neutral"
+        variant="ghost"
+        size="md"
+        label="Kembali ke Beranda"
+        class="font-bold rounded-xl w-full sm:w-auto justify-center"
       />
     </div>
   </div>

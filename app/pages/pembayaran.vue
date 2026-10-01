@@ -1,10 +1,25 @@
 <script setup lang="ts">
+const route = useRoute()
 const { appName } = useAppName()
 const { user, isPremium, premiumUntil, checkSession, isLoading, isInitialized } = useAppwriteAuth()
 
 useHead({
   title: `Pembayaran & Member Premium - ${appName.value}`
 })
+
+export interface PremiumPlanOption {
+  id: string
+  name: string
+  durationDays: number
+  price: number
+  priceLabel: string
+  badge: string
+  badgeColor: 'neutral' | 'primary' | 'warning' | 'success'
+  dailyPrice: string
+  description: string
+  features: string[]
+  isPopular?: boolean
+}
 
 export interface PremiumTransaction {
   id: string
@@ -14,40 +29,80 @@ export interface PremiumTransaction {
   durationDays: number
   amount: number
   method: string
-  status: 'completed' | 'pending' | 'failed'
-  expiredAt: string
+  status: 'completed' | 'pending' | 'failed' | 'expired'
+  expiredAt?: string
+  paymentLinkUrl?: string
 }
 
 // ==========================================
-// 1. STATE MEMBER (PREMIUM / REGULAR DARI APPWRITE AUTH)
+// 1. DAFTAR PAKET LANGGANAN PREMIUM
+// ==========================================
+const plans: PremiumPlanOption[] = [
+  {
+    id: 'plan_7d',
+    name: 'Member Premium 7 Hari',
+    durationDays: 7,
+    price: 12000,
+    priceLabel: 'Rp 12.000',
+    badge: 'Paket Mingguan',
+    badgeColor: 'neutral',
+    dailyPrice: 'Rp 1.714 / hari',
+    description: 'Akses penuh streaming live & katalog video replay selama 7 hari.',
+    features: ['Akses Live Streaming Teater', 'Akses Seluruh Arsip Replay', 'Masa Aktif 7 Hari Penuh']
+  },
+  {
+    id: 'plan_14d',
+    name: 'Member Premium 14 Hari',
+    durationDays: 14,
+    price: 20000,
+    priceLabel: 'Rp 20.000',
+    badge: 'Paling Populer',
+    badgeColor: 'primary',
+    dailyPrice: 'Rp 1.428 / hari',
+    description: 'Akses 2 minggu penuh untuk semua show teater & replay.',
+    features: ['Akses Live Streaming Teater', 'Akses Seluruh Arsip Replay', 'Masa Aktif 14 Hari Penuh', 'Lebih Hemat Rp 4.000'],
+    isPopular: true
+  },
+  {
+    id: 'plan_30d',
+    name: 'Member Premium 30 Hari',
+    durationDays: 30,
+    price: 30000,
+    priceLabel: 'Rp 30.000',
+    badge: 'Paling Untung (Best Value)',
+    badgeColor: 'warning',
+    dailyPrice: 'Rp 1.000 / hari',
+    description: 'Akses 1 bulan penuh tanpa batas dengan biaya super hemat!',
+    features: ['Akses Live Streaming Teater', 'Akses Seluruh Arsip Replay', 'Masa Aktif 30 Hari Penuh', 'Hemat Lebih dari 40%']
+  }
+]
+
+// ==========================================
+// 2. STATE MEMBER & PEMBAYARAN
 // ==========================================
 const isRefreshing = ref(false)
+const selectedPlanId = ref<string>('plan_30d')
+const isPlanModalOpen = ref(false)
+const isPaymentModalOpen = ref(false)
+const isSuccessModalOpen = ref(false)
+const isCreatingPayment = ref(false)
+const isCheckingStatus = ref(false)
+const isSimulating = ref(false)
+const copySuccess = ref(false)
+const paymentError = ref<string | null>(null)
+const currentOrder = ref<any>(null)
+const successExpiryDate = ref<string | null>(null)
 
-// Muat sesi terbaru dari Appwrite saat halaman dibuka
-onMounted(async () => {
-  if (import.meta.client) {
-    try {
-      await checkSession()
-    } catch {}
-  }
+// Selected plan object computed
+const selectedPlan = computed(() => {
+  return plans.find(p => p.id === selectedPlanId.value) || plans[0]
 })
 
-// Fungsi refresh manual status user dari Appwrite
-const refreshUserStatus = async () => {
-  isRefreshing.value = true
-  try {
-    await checkSession()
-  } finally {
-    isRefreshing.value = false
-  }
-}
-
-// Cek apakah premium masih aktif secara waktu berdasarkan user.prefs.premium dari Appwrite Auth
+// Cek status aktif premium
 const isPremiumActive = computed(() => {
   return isPremium.value
 })
 
-// Waktu kedaluwarsa premium yang aktif
 const activePremiumUntil = computed(() => {
   return premiumUntil.value
 })
@@ -71,6 +126,21 @@ const formatIndoDateTime = (dateStr?: string | null) => {
   }
 }
 
+// Format waktu jam menit
+const formatIndoTime = (dateStr?: string | null) => {
+  if (!dateStr) return ''
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit'
+    }) + ' WIB'
+  } catch {
+    return ''
+  }
+}
+
 // Perhitungan sisa hari premium
 const remainingDaysText = computed(() => {
   if (!activePremiumUntil.value || !isPremiumActive.value) return ''
@@ -85,7 +155,7 @@ const remainingDaysText = computed(() => {
   return `${days} Hari Lagi`
 })
 
-// Nama & email pengguna
+// User Identity
 const userDisplayName = computed(() => {
   return user.value?.name || user.value?.email?.split('@')[0] || 'Tamu / Pengunjung'
 })
@@ -95,47 +165,230 @@ const userEmail = computed(() => {
 })
 
 // ==========================================
-// 2. RIWAYAT TRANSAKSI PEMBELIAN PREMIUM
+// 3. RIWAYAT TRANSAKSI DARI SERVER & LOKAL
 // ==========================================
-const transactions = ref<PremiumTransaction[]>([
-  {
-    id: 'INV-PREM-202609-8812',
-    date: '25 Sep 2026, 14:32 WIB',
-    planId: 'plan_1m',
-    planName: 'Langganan Member Premium - 1 Bulan (30 Hari)',
-    durationDays: 30,
-    amount: 35000,
-    method: 'QRIS GoPay',
-    status: 'completed',
-    expiredAt: '25 Okt 2026'
-  },
-  {
-    id: 'INV-PREM-202608-4109',
-    date: '25 Agu 2026, 19:15 WIB',
-    planId: 'plan_1m',
-    planName: 'Langganan Member Premium - 1 Bulan (30 Hari)',
-    durationDays: 30,
-    amount: 35000,
-    method: 'BCA Virtual Account',
-    status: 'completed',
-    expiredAt: '24 Sep 2026'
-  }
-])
+const serverOrders = ref<any[]>([])
 
-// Load transactions from localStorage
-onMounted(() => {
+const fetchOrders = async () => {
+  if (!import.meta.client) return
+  try {
+    const queryParam = user.value?.$id ? `?user_id=${user.value.$id}` : ''
+    const res = await $fetch<any>(`/api/payment/orders${queryParam}`)
+    if (res?.success && Array.isArray(res.orders)) {
+      serverOrders.value = res.orders
+    }
+  } catch (err) {
+    console.error('Gagal mengambil daftar pesanan:', err)
+  }
+}
+
+// Gabungan transaksi
+const allTransactions = computed<PremiumTransaction[]>(() => {
+  const list: PremiumTransaction[] = []
+
+  // 1. Data dari server orders
+  for (const o of serverOrders.value) {
+    const dateFormatted = `${formatIndoDateTime(o.createdAt)}${formatIndoTime(o.createdAt) ? ', ' + formatIndoTime(o.createdAt) : ''}`
+    list.push({
+      id: o.id,
+      date: dateFormatted,
+      planId: o.planId,
+      planName: o.planName,
+      durationDays: o.durationDays,
+      amount: o.amount,
+      method: o.method || 'QRIS',
+      status: o.status || 'pending',
+      expiredAt: o.paidAt ? formatIndoDateTime(new Date(new Date(o.paidAt).getTime() + o.durationDays * 24 * 60 * 60 * 1000).toISOString()) : undefined,
+      paymentLinkUrl: o.paymentLinkUrl
+    })
+  }
+
+  // 2. Demo transaksi jika belum ada transaksi di server
+  if (list.length === 0) {
+    list.push(
+      {
+        id: 'INV-PREM-202609-8812',
+        date: '25 September 2026, 14:32 WIB',
+        planId: 'plan_30d',
+        planName: 'Member Premium 30 Hari',
+        durationDays: 30,
+        amount: 30000,
+        method: 'QRIS',
+        status: 'completed',
+        expiredAt: '25 Oktober 2026'
+      },
+      {
+        id: 'INV-PREM-202608-4109',
+        date: '25 Agustus 2026, 19:15 WIB',
+        planId: 'plan_14d',
+        planName: 'Member Premium 14 Hari',
+        durationDays: 14,
+        amount: 20000,
+        method: 'QRIS',
+        status: 'completed',
+        expiredAt: '8 September 2026'
+      }
+    )
+  }
+
+  return list
+})
+
+// Muat sesi dan pesanan saat halaman dibuka
+onMounted(async () => {
   if (import.meta.client) {
     try {
-      const savedTrx = localStorage.getItem('user_premium_transactions')
-      if (savedTrx) {
-        const parsed = JSON.parse(savedTrx)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          transactions.value = parsed
+      await checkSession()
+      await fetchOrders()
+
+      // Periksa query URL jika redirect kembali dari pembayaran
+      if (route.query.status === 'success' && route.query.order_id) {
+        const orderId = String(route.query.order_id)
+        await checkSession()
+        await fetchOrders()
+        const found = serverOrders.value.find(o => o.id === orderId)
+        if (found) {
+          currentOrder.value = found
+          isSuccessModalOpen.value = true
         }
       }
     } catch {}
   }
 })
+
+// Fungsi refresh manual status user dari Appwrite
+const refreshUserStatus = async () => {
+  isRefreshing.value = true
+  try {
+    await checkSession()
+    await fetchOrders()
+  } finally {
+    isRefreshing.value = false
+  }
+}
+
+// Buka Modal Pilih Paket
+const openPlanModal = () => {
+  paymentError.value = null
+  isPlanModalOpen.value = true
+}
+
+// Pilih paket
+const selectPlan = (planId: string) => {
+  selectedPlanId.value = planId
+}
+
+// Buat Tagihan Pembayaran QRIS
+const handleCreatePayment = async () => {
+  if (!user.value) {
+    paymentError.value = 'Silakan masuk ke akun Anda terlebih dahulu.'
+    return
+  }
+
+  isCreatingPayment.value = true
+  paymentError.value = null
+
+  try {
+    const payload = {
+      plan_id: selectedPlan.value.id,
+      user_id: user.value.$id,
+      user_email: user.value.email,
+      user_name: user.value.name || userDisplayName.value
+    }
+
+    const res = await $fetch<any>('/api/payment/create', {
+      method: 'POST',
+      body: payload
+    })
+
+    if (res?.success && res.order) {
+      currentOrder.value = res.order
+      isPlanModalOpen.value = false
+      isPaymentModalOpen.value = true
+      await fetchOrders()
+
+      // Buka otomatis tautan pembayaran di tab baru
+      if (res.order.paymentLinkUrl && import.meta.client) {
+        window.open(res.order.paymentLinkUrl, '_blank')
+      }
+    } else {
+      throw new Error(res?.message || 'Gagal membuat tagihan pembayaran.')
+    }
+  } catch (err: any) {
+    console.error('Error creating payment:', err)
+    paymentError.value = err?.data?.statusMessage || err?.message || 'Gagal membuat tagihan pembayaran QRIS.'
+  } finally {
+    isCreatingPayment.value = false
+  }
+}
+
+// Buka link pembayaran QRIS
+const openPaymentLink = () => {
+  if (currentOrder.value?.paymentLinkUrl && import.meta.client) {
+    window.open(currentOrder.value.paymentLinkUrl, '_blank')
+  }
+}
+
+// Salin link pembayaran
+const copyPaymentLink = async () => {
+  if (!currentOrder.value?.paymentLinkUrl || !import.meta.client) return
+  try {
+    await navigator.clipboard.writeText(currentOrder.value.paymentLinkUrl)
+    copySuccess.value = true
+    setTimeout(() => {
+      copySuccess.value = false
+    }, 2500)
+  } catch {}
+}
+
+// Cek status pembayaran ke server
+const checkPaymentStatus = async () => {
+  if (!currentOrder.value?.id) return
+  isCheckingStatus.value = true
+  try {
+    const res = await $fetch<any>(`/api/payment/orders?order_id=${currentOrder.value.id}`)
+    if (res?.success && res.order) {
+      currentOrder.value = res.order
+      if (res.order.status === 'completed') {
+        await checkSession()
+        await fetchOrders()
+        isPaymentModalOpen.value = false
+        isSuccessModalOpen.value = true
+      }
+    }
+  } catch (err) {
+    console.error('Gagal mengecek status pesanan:', err)
+  } finally {
+    isCheckingStatus.value = false
+  }
+}
+
+// Simulasi pembayaran sandbox selesai (berguna untuk pengujian)
+const handleSimulateComplete = async () => {
+  if (!currentOrder.value?.id) return
+  isSimulating.value = true
+  try {
+    const res = await $fetch<any>('/api/payment/simulate-complete', {
+      method: 'POST',
+      body: { order_id: currentOrder.value.id }
+    })
+
+    if (res?.success) {
+      if (res.newExpiry) {
+        successExpiryDate.value = res.newExpiry
+      }
+      currentOrder.value = res.order
+      await checkSession()
+      await fetchOrders()
+      isPaymentModalOpen.value = false
+      isSuccessModalOpen.value = true
+    }
+  } catch (err: any) {
+    console.error('Gagal simulasi pembayaran:', err)
+  } finally {
+    isSimulating.value = false
+  }
+}
 
 // Format Rupiah
 const formatRupiah = (val: number) => {
@@ -152,19 +405,19 @@ const formatRupiah = (val: number) => {
     <!-- Header Section -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-6">
       <div>
-        <h1 class="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3">
+        <h1 class="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3 text-neutral-900 dark:text-white">
           <UIcon name="i-lucide-crown" class="w-8 h-8 text-primary" />
-          Pembayaran & Status Member
+          Pembayaran & Member Premium
         </h1>
         <p class="text-neutral-500 dark:text-neutral-400 text-sm mt-1">
-          Informasi status keanggotaan akun Anda, masa aktif premium, dan riwayat transaksi.
+          Aktifkan status member premium akun Anda menggunakan QRIS dengan verifikasi otomatis.
         </p>
       </div>
 
       <div class="flex items-center gap-2">
         <UBadge color="primary" variant="subtle" size="md" class="px-3 py-1 font-semibold flex items-center gap-1.5">
           <UIcon name="i-lucide-shield-check" class="w-4 h-4 text-primary" />
-          Status Akun Terverifikasi
+          Pembayaran QRIS Resmi
         </UBadge>
       </div>
     </div>
@@ -245,7 +498,7 @@ const formatRupiah = (val: number) => {
                   variant="solid"
                   size="xs"
                   icon="i-lucide-log-in"
-                  class="font-bold px-3 py-1.5 rounded-xl"
+                  class="font-bold px-3 py-1.5 rounded-xl cursor-pointer"
                 >
                   Masuk ke Akun
                 </UButton>
@@ -281,24 +534,27 @@ const formatRupiah = (val: number) => {
           </div>
         </div>
 
-        <!-- Status Akses & Tombol Refresh di Kanan -->
-        <div class="flex flex-col sm:flex-row md:flex-col items-start md:items-end justify-center gap-2.5 flex-shrink-0 pt-2 md:pt-0">
-          <div
-            class="px-3.5 py-2 rounded-2xl border text-xs flex items-center gap-2"
-            :class="isPremiumActive
-              ? 'bg-amber-500/10 border-amber-500/20 text-amber-800 dark:text-amber-300'
-              : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-500'"
+        <!-- Tombol Aksi & Pembayaran di Kanan -->
+        <div class="flex flex-col sm:flex-row md:flex-col items-start md:items-end justify-center gap-3 flex-shrink-0 pt-2 md:pt-0">
+          <!-- Tombol Utama: Aktifkan / Tambah Premium -->
+          <UButton
+            color="warning"
+            :variant="isPremiumActive ? 'subtle' : 'solid'"
+            size="md"
+            :icon="isPremiumActive ? 'i-lucide-sparkles' : 'i-lucide-crown'"
+            class="font-black px-5 py-2.5 rounded-2xl shadow-md cursor-pointer transition-all hover:scale-102 flex items-center gap-2"
+            @click="openPlanModal"
           >
-            <UIcon :name="isPremiumActive ? 'i-lucide-check-circle-2' : 'i-lucide-info'" class="w-4 h-4 text-amber-500" />
-            <span class="font-bold">{{ isPremiumActive ? 'Akses Premium Aktif' : 'Akses Member Terbatas' }}</span>
-          </div>
+            <span>{{ isPremiumActive ? 'Tambah / Perpanjang Premium' : 'Aktifkan Member Premium' }}</span>
+          </UButton>
 
+          <!-- Tombol Segarkan Status -->
           <button
             v-if="user"
             type="button"
             :disabled="isRefreshing"
             class="text-[11px] text-neutral-400 hover:text-primary transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            title="Muat ulang preferensi terbaru dari Appwrite Auth"
+            title="Muat ulang status terbaru dari server"
             @click="refreshUserStatus"
           >
             <UIcon name="i-lucide-refresh-cw" class="w-3 h-3" :class="{ 'animate-spin': isRefreshing }" />
@@ -319,18 +575,18 @@ const formatRupiah = (val: number) => {
             Riwayat Transaksi Pembelian Premium
           </h2>
           <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Daftar riwayat transaksi langganan dan perpanjangan member premium pada akun Anda.
+            Daftar riwayat transaksi langganan dan perpanjangan member premium pada akun Anda via QRIS.
           </p>
         </div>
         <UBadge color="neutral" variant="subtle" size="sm" class="font-bold">
-          Total {{ transactions.length }} Transaksi
+          Total {{ allTransactions.length }} Transaksi
         </UBadge>
       </div>
 
       <!-- Transactions List -->
-      <div v-if="transactions.length > 0" class="divide-y divide-neutral-100 dark:divide-neutral-800/80">
+      <div v-if="allTransactions.length > 0" class="divide-y divide-neutral-100 dark:divide-neutral-800/80">
         <div
-          v-for="trx in transactions"
+          v-for="trx in allTransactions"
           :key="trx.id"
           class="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-neutral-50/60 dark:hover:bg-neutral-800/40 px-3 rounded-2xl transition-colors"
         >
@@ -350,11 +606,16 @@ const formatRupiah = (val: number) => {
                 <span>&bull;</span>
                 <span>{{ trx.date }}</span>
                 <span>&bull;</span>
-                <span class="text-neutral-600 dark:text-neutral-300 font-medium">{{ trx.method }}</span>
-                <span>&bull;</span>
-                <span class="text-neutral-500 dark:text-neutral-400 text-[11px]">
-                  Masa Berlaku: <strong class="text-neutral-700 dark:text-neutral-200">{{ trx.expiredAt }}</strong>
+                <span class="text-neutral-600 dark:text-neutral-300 font-medium flex items-center gap-1">
+                  <UIcon name="i-lucide-qr-code" class="w-3.5 h-3.5 text-primary" />
+                  {{ trx.method }}
                 </span>
+                <template v-if="trx.expiredAt">
+                  <span>&bull;</span>
+                  <span class="text-neutral-500 dark:text-neutral-400 text-[11px]">
+                    Masa Berlaku: <strong class="text-neutral-700 dark:text-neutral-200">{{ trx.expiredAt }}</strong>
+                  </span>
+                </template>
               </div>
             </div>
           </div>
@@ -365,13 +626,27 @@ const formatRupiah = (val: number) => {
                 {{ formatRupiah(trx.amount) }}
               </div>
               <UBadge
-                color="success"
+                :color="trx.status === 'completed' ? 'success' : trx.status === 'pending' ? 'warning' : 'neutral'"
                 variant="subtle"
                 size="xs"
                 class="mt-1 font-bold"
               >
-                Lunas / Berhasil
+                {{ trx.status === 'completed' ? 'Lunas / Berhasil' : trx.status === 'pending' ? 'Menunggu Pembayaran' : trx.status }}
               </UBadge>
+            </div>
+
+            <!-- Tombol jika status pending -->
+            <div v-if="trx.status === 'pending' && trx.paymentLinkUrl">
+              <UButton
+                color="primary"
+                variant="solid"
+                size="xs"
+                icon="i-lucide-external-link"
+                class="font-bold rounded-xl"
+                @click="() => { currentOrder = trx; isPaymentModalOpen = true }"
+              >
+                Bayar
+              </UButton>
             </div>
           </div>
         </div>
@@ -383,8 +658,356 @@ const formatRupiah = (val: number) => {
           <UIcon name="i-lucide-receipt" class="w-6 h-6" />
         </div>
         <p class="text-sm font-bold text-neutral-700 dark:text-neutral-300">Belum Ada Riwayat Transaksi</p>
-        <p class="text-xs text-neutral-400">Transaksi pembelian paket premium Anda akan otomatis tercatat di sini.</p>
+        <p class="text-xs text-neutral-400">Transaksi pembelian paket premium Anda via QRIS akan otomatis tercatat di sini.</p>
       </div>
     </section>
+
+    <!-- ==================================================== -->
+    <!-- 3. MODAL PILIH PAKET LANGGANAN PREMIUM               -->
+    <!-- ==================================================== -->
+    <UModal
+      v-model:open="isPlanModalOpen"
+      :ui="{ content: 'sm:max-w-2xl md:max-w-3xl' }"
+      class="sm:max-w-2xl md:max-w-3xl"
+    >
+      <template #content>
+        <div class="p-6 sm:p-7 space-y-6">
+          <!-- Modal Header -->
+          <div class="flex items-start justify-between gap-4 border-b border-neutral-100 dark:border-neutral-800 pb-4">
+            <div class="flex items-center gap-3.5">
+              <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
+                <UIcon name="i-lucide-crown" class="w-6 h-6" />
+              </div>
+              <div>
+                <h3 class="text-lg font-black text-neutral-900 dark:text-white">
+                  {{ isPremiumActive ? 'Tambah / Perpanjang Masa Premium' : 'Pilih Paket Member Premium' }}
+                </h3>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                  Buka akses seluruh live stream panggung & katalog arsip replay.
+                </p>
+              </div>
+            </div>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              icon="i-lucide-x"
+              class="rounded-xl"
+              @click="isPlanModalOpen = false"
+            />
+          </div>
+
+          <!-- Jika Pengguna Belum Login -->
+          <div v-if="!user" class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center space-y-3">
+            <UIcon name="i-lucide-user-x" class="w-8 h-8 text-amber-500 mx-auto" />
+            <div class="space-y-1">
+              <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Anda Belum Masuk Akun</h4>
+              <p class="text-xs text-neutral-600 dark:text-neutral-400">
+                Harap masuk akun terlebih dahulu agar masa aktif Member Premium otomatis masuk ke akun Anda setelah pembayaran selesai.
+              </p>
+            </div>
+            <UButton
+              to="/login"
+              color="primary"
+              variant="solid"
+              size="sm"
+              block
+              icon="i-lucide-log-in"
+              class="font-bold rounded-xl"
+            >
+              Masuk ke Akun Sekarang
+            </UButton>
+          </div>
+
+          <!-- Pilihan Paket (Radio Cards) -->
+          <div v-else class="space-y-4">
+            <div class="space-y-3">
+              <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">
+                Pilih Durasi Paket Langganan
+              </label>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div
+                  v-for="plan in plans"
+                  :key="plan.id"
+                  class="relative p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between"
+                  :class="selectedPlanId === plan.id
+                    ? 'border-amber-500 bg-amber-500/10 dark:bg-amber-500/15 shadow-sm'
+                    : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/40'"
+                  @click="selectPlan(plan.id)"
+                >
+                  <!-- Badge Rekomendasi / Populer -->
+                  <div class="flex items-center justify-between gap-1 mb-2">
+                    <UBadge
+                      :color="plan.badgeColor"
+                      variant="subtle"
+                      size="xs"
+                      class="font-extrabold text-[10px]"
+                    >
+                      {{ plan.badge }}
+                    </UBadge>
+
+                    <div
+                      class="w-5 h-5 rounded-full border flex items-center justify-center transition-colors"
+                      :class="selectedPlanId === plan.id
+                        ? 'border-amber-500 bg-amber-500 text-white'
+                        : 'border-neutral-300 dark:border-neutral-600'"
+                    >
+                      <UIcon v-if="selectedPlanId === plan.id" name="i-lucide-check" class="w-3.5 h-3.5 font-bold" />
+                    </div>
+                  </div>
+
+                  <div class="space-y-1">
+                    <div class="text-sm font-black text-neutral-900 dark:text-white">
+                      {{ plan.durationDays }} Hari
+                    </div>
+                    <div class="text-lg font-black text-amber-600 dark:text-amber-400">
+                      {{ plan.priceLabel }}
+                    </div>
+                    <div class="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      {{ plan.dailyPrice }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Metode Pembayaran: QRIS Only -->
+            <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Metode Pembayaran</span>
+                <UBadge color="primary" variant="subtle" size="xs" class="font-bold flex items-center gap-1">
+                  <UIcon name="i-lucide-check-circle-2" class="w-3.5 h-3.5" />
+                  Instan & Otomatis
+                </UBadge>
+              </div>
+
+              <div class="p-3 rounded-xl border border-primary/30 bg-white dark:bg-neutral-900 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-black text-xs">
+                    <UIcon name="i-lucide-qr-code" class="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div class="font-bold text-sm text-neutral-900 dark:text-white flex items-center gap-2">
+                      <span>QRIS (Otomatis & Real-Time)</span>
+                      <span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">Resmi</span>
+                    </div>
+                    <p class="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      GoPay, OVO, DANA, ShopeePay, BCA, Mandiri, BRI, BNI & seluruh mobile banking.
+                    </p>
+                  </div>
+                </div>
+                <UIcon name="i-lucide-check" class="w-5 h-5 text-primary flex-shrink-0" />
+              </div>
+            </div>
+
+            <!-- Pesan Error jika ada -->
+            <div v-if="paymentError" class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
+              <UIcon name="i-lucide-alert-circle" class="w-4 h-4 flex-shrink-0" />
+              <span>{{ paymentError }}</span>
+            </div>
+
+            <!-- Ringkasan Total & Tombol Aksi -->
+            <div class="pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-3">
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-neutral-500">Paket yang Dipilih:</span>
+                <span class="font-bold text-neutral-900 dark:text-white">{{ selectedPlan.name }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Total Pembayaran:</span>
+                <span class="text-xl font-black text-primary">{{ formatRupiah(selectedPlan.price) }}</span>
+              </div>
+
+              <div class="pt-1 flex items-center gap-2">
+                <UButton
+                  color="neutral"
+                  variant="subtle"
+                  size="md"
+                  class="flex-1 font-semibold rounded-xl justify-center cursor-pointer"
+                  @click="isPlanModalOpen = false"
+                >
+                  Batal
+                </UButton>
+
+                <UButton
+                  color="primary"
+                  variant="solid"
+                  size="md"
+                  class="flex-2 font-black rounded-xl justify-center cursor-pointer shadow-md"
+                  icon="i-lucide-qr-code"
+                  :loading="isCreatingPayment"
+                  @click="handleCreatePayment"
+                >
+                  Bayar dengan QRIS
+                </UButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- ==================================================== -->
+    <!-- 4. MODAL DETAIL PEMBAYARAN QRIS (CHECKOUT)           -->
+    <!-- ==================================================== -->
+    <UModal
+      v-model:open="isPaymentModalOpen"
+      :ui="{ content: 'sm:max-w-xl md:max-w-2xl' }"
+      class="sm:max-w-xl md:max-w-2xl"
+    >
+      <template #content>
+        <div class="p-6 sm:p-7 space-y-5 text-center">
+          <div class="w-14 h-14 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-sm">
+            <UIcon name="i-lucide-qr-code" class="w-8 h-8" />
+          </div>
+
+          <div class="space-y-1">
+            <h3 class="text-xl font-black text-neutral-900 dark:text-white">
+              Selesaikan Pembayaran QRIS
+            </h3>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">
+              Silakan buka tautan pembayaran untuk memindai kode QRIS.
+            </p>
+          </div>
+
+          <!-- Rincian Pesanan Box -->
+          <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800 text-left text-xs space-y-2 border border-neutral-200 dark:border-neutral-700">
+            <div class="flex justify-between">
+              <span class="text-neutral-500">Nomor Pesanan:</span>
+              <span class="font-mono font-bold text-neutral-900 dark:text-white">{{ currentOrder?.id }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-neutral-500">Paket Layanan:</span>
+              <span class="font-bold text-neutral-900 dark:text-white">{{ currentOrder?.planName }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-neutral-500">Metode:</span>
+              <span class="font-bold text-neutral-900 dark:text-white">QRIS (Semua E-Wallet/Bank)</span>
+            </div>
+            <div class="flex justify-between pt-1 border-t border-neutral-200 dark:border-neutral-700">
+              <span class="font-bold text-neutral-700 dark:text-neutral-300">Total Tagihan:</span>
+              <span class="font-black text-base text-primary">{{ formatRupiah(currentOrder?.amount || 0) }}</span>
+            </div>
+          </div>
+
+          <!-- Tombol Aksi Pembayaran -->
+          <div class="space-y-2 pt-1">
+            <UButton
+              color="primary"
+              variant="solid"
+              size="lg"
+              block
+              icon="i-lucide-external-link"
+              class="font-black rounded-xl py-3 shadow-md cursor-pointer justify-center"
+              @click="openPaymentLink"
+            >
+              Buka Halaman Pembayaran QRIS
+            </UButton>
+
+            <div class="flex items-center gap-2">
+              <UButton
+                color="neutral"
+                variant="subtle"
+                size="sm"
+                block
+                class="flex-1 font-semibold rounded-xl justify-center cursor-pointer"
+                icon="i-lucide-copy"
+                @click="copyPaymentLink"
+              >
+                {{ copySuccess ? 'Tautan Disalin!' : 'Salin Tautan' }}
+              </UButton>
+
+              <UButton
+                color="neutral"
+                variant="outline"
+                size="sm"
+                block
+                class="flex-1 font-bold rounded-xl justify-center cursor-pointer"
+                icon="i-lucide-refresh-cw"
+                :loading="isCheckingStatus"
+                @click="checkPaymentStatus"
+              >
+                Cek Status
+              </UButton>
+            </div>
+
+            <!-- Tombol Bantuan Simulator Pembayaran Sandbox -->
+            <div class="pt-3 border-t border-neutral-100 dark:border-neutral-800">
+              <button
+                type="button"
+                :disabled="isSimulating"
+                class="text-xs text-neutral-400 hover:text-amber-500 transition-colors flex items-center justify-center gap-1 mx-auto underline cursor-pointer disabled:opacity-50"
+                title="Simulasi pembayaran selesai langsung di lingkungan Sandbox"
+                @click="handleSimulateComplete"
+              >
+                <UIcon name="i-lucide-zap" class="w-3.5 h-3.5 text-amber-500" />
+                <span>{{ isSimulating ? 'Memproses simulasi...' : 'Simulasi Pembayaran Sukses (Sandbox Test)' }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- ==================================================== -->
+    <!-- 5. MODAL SUKSES AKTIVASI MEMBER PREMIUM              -->
+    <!-- ==================================================== -->
+    <UModal
+      v-model:open="isSuccessModalOpen"
+      :ui="{ content: 'sm:max-w-lg md:max-w-xl' }"
+      class="sm:max-w-lg md:max-w-xl"
+    >
+      <template #content>
+        <div class="p-6 sm:p-8 space-y-5 text-center">
+          <div class="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/10">
+            <UIcon name="i-lucide-check-circle" class="w-10 h-10" />
+          </div>
+
+          <div class="space-y-1.5">
+            <h3 class="text-2xl font-black text-neutral-900 dark:text-white">
+              Pembayaran Berhasil!
+            </h3>
+            <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">
+              Selamat, akun Anda telah resmi terdaftar sebagai <strong class="text-amber-500">MEMBER PREMIUM</strong>.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left text-xs space-y-2">
+            <div class="flex justify-between">
+              <span class="text-neutral-600 dark:text-neutral-400">Status Keanggotaan:</span>
+              <span class="font-extrabold text-amber-600 dark:text-amber-400">MEMBER PREMIUM</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-neutral-600 dark:text-neutral-400">Masa Aktif Premium:</span>
+              <span class="font-bold text-neutral-900 dark:text-white">{{ formatIndoDateTime(activePremiumUntil) }}</span>
+            </div>
+          </div>
+
+          <div class="pt-2 flex flex-col sm:flex-row items-center gap-2">
+            <UButton
+              to="/stream"
+              color="primary"
+              variant="solid"
+              size="md"
+              block
+              class="flex-1 font-bold rounded-xl justify-center cursor-pointer shadow-md"
+              icon="i-lucide-tv"
+            >
+              Nonton Live Stream
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="subtle"
+              size="md"
+              block
+              class="flex-1 font-semibold rounded-xl justify-center cursor-pointer"
+              @click="isSuccessModalOpen = false"
+            >
+              Tutup
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>

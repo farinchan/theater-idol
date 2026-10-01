@@ -12,17 +12,22 @@ export default defineNuxtConfig({
     }
   },
   runtimeConfig: {
+    sumopodApiKey: process.env.SUMOPOD_API_KEY || '',
+    sumopodPayEndpoint: process.env.SUMOPOD_PAY_ENDPOINT || '',
+    sumopodWebhookSecret: process.env.SUMOPOD_WEBHOOK_SECRET || '',
+    sumopodWebhookToken: process.env.SUMOPOD_WEBHOOK_TOKEN || '',
+    appwriteApiKey: process.env.APPWRITE_API_KEY || '',
     public: {
       appName: process.env.APP_NAME || 'Pekerja48',
       streamUrl: process.env.STREAM_URL || process.env.NUXT_PUBLIC_STREAM_URL || '',
       appwriteEndpoint: process.env.APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1',
-      appwriteProjectId: process.env.APPWRITE_PROJECT_ID || '6a869957002a80bc5060',
-      appwriteDatabaseId: process.env.APPWRITE_DATABASE_ID || '6aba9a7300316352ddb0',
-      appwriteTableSetlistId: process.env.APPWRITE_TABLE_SETLIST_ID || process.env.APPWRITE_COLLECTION_SETLIST_ID || '6abacdde002ba14e3aa8',
-      appwriteCollectionSetlistId: process.env.APPWRITE_COLLECTION_SETLIST_ID || process.env.APPWRITE_TABLE_SETLIST_ID || '6abacdde002ba14e3aa8',
-      appwriteBucketId: process.env.APPWRITE_BUCKET_ID || 'setlist-photos',
-      appwriteTableShowId: process.env.APPWRITE_TABLE_SHOW_ID || 'shows',
-      appwriteTableChatId: process.env.APPWRITE_TABLE_CHAT_ID || process.env.APPWRITE_COLLECTION_CHAT_ID || 'live_chat'
+      appwriteProjectId: process.env.APPWRITE_PROJECT_ID || '',
+      appwriteDatabaseId: process.env.APPWRITE_DATABASE_ID || '',
+      appwriteTableSetlistId: process.env.APPWRITE_TABLE_SETLIST_ID || process.env.APPWRITE_COLLECTION_SETLIST_ID || '',
+      appwriteCollectionSetlistId: process.env.APPWRITE_COLLECTION_SETLIST_ID || process.env.APPWRITE_TABLE_SETLIST_ID || '',
+      appwriteBucketId: process.env.APPWRITE_BUCKET_ID || '',
+      appwriteTableShowId: process.env.APPWRITE_TABLE_SHOW_ID || '',
+      appwriteTableChatId: process.env.APPWRITE_TABLE_CHAT_ID || process.env.APPWRITE_COLLECTION_CHAT_ID || ''
     }
   }
 })

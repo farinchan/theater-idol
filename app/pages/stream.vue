@@ -6,7 +6,7 @@ import { useAppwriteAuth } from '~/composables/useAppwriteAuth'
 
 const config = useRuntimeConfig()
 const streamUrl = computed(() => (config.public.streamUrl as string) || '')
-const { isStreamEnabled, streamNotice } = useSiteSettings()
+const { isStreamEnabled, isStreamRequireLogin, isStreamRequirePremium, streamNotice } = useSiteSettings()
 
 // Realtime Live Chat State
 const {
@@ -26,7 +26,7 @@ const {
   sendMessage: sendLiveChatMessage
 } = useAppwriteLiveChat()
 
-const { isAdmin } = useAppwriteAuth()
+const { user, isAdmin, isPremium } = useAppwriteAuth()
 
 const chatContainerRef = ref<HTMLDivElement | null>(null)
 const chatInput = ref('')
@@ -266,6 +266,80 @@ const handleSendMessage = async () => {
         icon="i-lucide-calendar-days"
         label="Lihat Jadwal Show"
         class="font-bold rounded-xl"
+      />
+    </div>
+  </div>
+
+  <!-- Screen Jika Akses Stream Memerlukan Login -->
+  <div v-else-if="(isStreamRequirePremium || isStreamRequireLogin) && !user" class="p-8 sm:p-16 max-w-md mx-auto text-center space-y-6">
+    <div class="w-16 h-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-sm">
+      <UIcon name="i-lucide-lock" class="w-8 h-8" />
+    </div>
+    <div class="space-y-2">
+      <UBadge color="primary" variant="subtle" size="xs" class="font-bold">
+        LOGIN DIPERLUKAN
+      </UBadge>
+      <h2 class="text-2xl font-black text-neutral-900 dark:text-white">
+        Akses Live Stream Terbatas
+      </h2>
+      <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
+        Live Streaming saat ini hanya dapat disaksikan oleh pengguna yang telah masuk ke akun. Silakan masuk terlebih dahulu untuk menonton.
+      </p>
+    </div>
+    <div class="flex items-center justify-center gap-3 pt-2">
+      <UButton
+        to="/login"
+        color="primary"
+        variant="solid"
+        size="md"
+        icon="i-lucide-log-in"
+        label="Masuk ke Akun"
+        class="font-bold rounded-xl"
+      />
+      <UButton
+        to="/"
+        color="neutral"
+        variant="ghost"
+        size="md"
+        label="Kembali ke Beranda"
+        class="font-bold rounded-xl"
+      />
+    </div>
+  </div>
+
+  <!-- Screen Jika Akses Stream Khusus Member Premium -->
+  <div v-else-if="isStreamRequirePremium && !isPremium && !isAdmin" class="p-8 sm:p-16 max-w-md mx-auto text-center space-y-6">
+    <div class="w-16 h-16 rounded-3xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto shadow-sm">
+      <UIcon name="i-lucide-crown" class="w-8 h-8" />
+    </div>
+    <div class="space-y-2">
+      <UBadge color="warning" variant="subtle" size="xs" class="font-bold">
+        KHUSUS MEMBER PREMIUM
+      </UBadge>
+      <h2 class="text-2xl font-black text-neutral-900 dark:text-white">
+        Fitur Eksklusif Premium
+      </h2>
+      <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
+        Siaran Live Stream panggung teater ini dikhususkan bagi Member Premium. Aktifkan paket langganan Anda untuk mendapatkan akses penuh menonton.
+      </p>
+    </div>
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+      <UButton
+        to="/pembayaran"
+        color="warning"
+        variant="solid"
+        size="md"
+        icon="i-lucide-crown"
+        label="Aktifkan Member Premium"
+        class="font-bold rounded-xl shadow-md w-full sm:w-auto justify-center"
+      />
+      <UButton
+        to="/"
+        color="neutral"
+        variant="ghost"
+        size="md"
+        label="Kembali ke Beranda"
+        class="font-bold rounded-xl w-full sm:w-auto justify-center"
       />
     </div>
   </div>
