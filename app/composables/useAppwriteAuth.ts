@@ -4,10 +4,111 @@ import { account, ID } from '~/appwrite'
 export interface UserPreferences {
   avatar?: string
   bio?: string
+  premium?: string // Waktu kedaluwarsa premium dalam format ISO string (contoh: 2026-10-31T23:59:59.000Z)
   [key: string]: any
 }
 
 export type AppwriteUser = Models.User<UserPreferences>
+
+export interface ParsedPremium {
+  isActive: boolean
+  expDate: Date | null
+  isLifetime: boolean
+  formatted: string
+}
+
+/**
+ * Mem-parsing fleksibel nilai preferensi premium:
+ * Mendukung ISO string, format YYYY-MM-DD, format DD-MM-YYYY / DD/MM/YYYY,
+ * timestamp Unix (detik & milidetik), dan boolean / flag "true" / "lifetime".
+ */
+export const parsePremiumExpiry = (val: any): ParsedPremium => {
+  if (val === null || val === undefined || val === '') {
+    return { isActive: false, expDate: null, isLifetime: false, formatted: '' }
+  }
+
+  // 1. Boolean atau string flag permanen / aktif
+  const lowerStr = String(val).toLowerCase().trim()
+  if (
+    val === true ||
+    val === 1 ||
+    lowerStr === 'true' ||
+    lowerStr === '1' ||
+    lowerStr === 'active' ||
+    lowerStr === 'aktif' ||
+    lowerStr === 'lifetime' ||
+    lowerStr === 'permanen' ||
+    lowerStr === 'selamanya' ||
+    lowerStr === 'premium'
+  ) {
+    return { isActive: true, expDate: null, isLifetime: true, formatted: 'Permanen / Lifetime' }
+  }
+
+  if (
+    val === false ||
+    val === 0 ||
+    lowerStr === 'false' ||
+    lowerStr === '0'
+  ) {
+    return { isActive: false, expDate: null, isLifetime: false, formatted: '' }
+  }
+
+  const str = String(val).trim()
+
+  // 2. Numeric timestamp (detik atau milidetik)
+  if (/^\d+$/.test(str)) {
+    const num = Number(str)
+    const ts = str.length <= 10 ? num * 1000 : num
+    const d = new Date(ts)
+    if (!isNaN(d.getTime())) {
+      const active = d.getTime() > Date.now()
+      return { isActive: active, expDate: d, isLifetime: false, formatted: d.toISOString() }
+    }
+  }
+
+  // 3. Format DD-MM-YYYY atau DD/MM/YYYY atau DD.MM.YYYY (standar penulisan tanggal di Indonesia)
+  const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/)
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10)
+    const month = parseInt(dmyMatch[2], 10) - 1
+    const year = parseInt(dmyMatch[3], 10)
+    const hour = dmyMatch[4] !== undefined ? parseInt(dmyMatch[4], 10) : 23
+    const minute = dmyMatch[5] !== undefined ? parseInt(dmyMatch[5], 10) : 59
+    const second = dmyMatch[6] !== undefined ? parseInt(dmyMatch[6], 10) : 59
+    const d = new Date(year, month, day, hour, minute, second, 999)
+    if (!isNaN(d.getTime())) {
+      const active = d.getTime() > Date.now()
+      return { isActive: active, expDate: d, isLifetime: false, formatted: d.toISOString() }
+    }
+  }
+
+  // 4. Format YYYY-MM-DD atau YYYY/MM/DD (tanpa jam: berlaku hingga akhir hari 23:59:59 lokal)
+  const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/)
+  if (ymdMatch) {
+    const year = parseInt(ymdMatch[1], 10)
+    const month = parseInt(ymdMatch[2], 10) - 1
+    const day = parseInt(ymdMatch[3], 10)
+    const d = new Date(year, month, day, 23, 59, 59, 999)
+    if (!isNaN(d.getTime())) {
+      const active = d.getTime() > Date.now()
+      return { isActive: active, expDate: d, isLifetime: false, formatted: d.toISOString() }
+    }
+  }
+
+  // 5. Standard ISO / Date string
+  const d = new Date(str)
+  if (!isNaN(d.getTime())) {
+    let expTime = d.getTime()
+    if (!str.includes(':') && !str.includes('T')) {
+      d.setHours(23, 59, 59, 999)
+      expTime = d.getTime()
+    }
+    const active = expTime > Date.now()
+    return { isActive: active, expDate: d, isLifetime: false, formatted: d.toISOString() }
+  }
+
+  return { isActive: false, expDate: null, isLifetime: false, formatted: '' }
+}
 
 export const useAppwriteAuth = () => {
   const user = useState<AppwriteUser | null>('appwrite_user', () => null)
@@ -203,9 +304,94 @@ export const useAppwriteAuth = () => {
     return Array.isArray(labels) && labels.some((l: string) => l.toLowerCase() === 'admin')
   })
 
+  // Helper to extract raw premium preference value
+  const rawPremiumPref = computed(() => {
+    if (!user.value) return null
+    const prefs = user.value.prefs || {}
+    return (
+      prefs.premium ??
+      prefs.Premium ??
+      prefs.PREMIUM ??
+      prefs.premium_until ??
+      prefs.premiumUntil ??
+      prefs.membership ??
+      null
+    )
+  })
+
+  // Check if current user has active premium subscription from prefs.premium or labels
+  const isPremium = computed(() => {
+    if (!user.value) return false
+
+    // 1. Check user labels (e.g. 'premium', 'vip', 'member_premium')
+    const labels = user.value.labels || []
+    if (Array.isArray(labels) && labels.some((l: string) => ['premium', 'vip', 'member_premium'].includes(l.toLowerCase()))) {
+      return true
+    }
+
+    // 2. Check user preferences
+    const raw = rawPremiumPref.value
+    if (raw === null || raw === undefined) return false
+
+    const parsed = parsePremiumExpiry(raw)
+    return parsed.isActive
+  })
+
+  // Return the premium expiration ISO string or formatted text or null
+  const premiumUntil = computed(() => {
+    if (!user.value) return null
+
+    const raw = rawPremiumPref.value
+    if (raw === null || raw === undefined) {
+      const labels = user.value.labels || []
+      if (Array.isArray(labels) && labels.some((l: string) => ['premium', 'vip'].includes(l.toLowerCase()))) {
+        return 'Permanen'
+      }
+      return null
+    }
+
+    const parsed = parsePremiumExpiry(raw)
+    if (parsed.isLifetime) return 'Permanen'
+    return parsed.expDate ? parsed.expDate.toISOString() : (parsed.formatted || String(raw))
+  })
+
+  // Helper to update premium preference in Appwrite Auth
+  const updatePremiumPreference = async (untilDateIso: string | null) => {
+    if (!import.meta.client) return { success: false, error: 'Client-only operation' }
+    if (!user.value) return { success: false, error: 'User belum login' }
+
+    isLoading.value = true
+    authError.value = null
+
+    try {
+      const currentPrefs = { ...(user.value.prefs || {}) }
+      if (untilDateIso) {
+        currentPrefs.premium = untilDateIso
+      } else {
+        delete currentPrefs.premium
+      }
+
+      await account.updatePrefs({
+        prefs: currentPrefs
+      })
+
+      const updatedUser = await account.get<UserPreferences>()
+      user.value = updatedUser
+      return { success: true, user: updatedUser }
+    } catch (err: any) {
+      const message = err?.message || 'Gagal memperbarui status premium di Appwrite Auth.'
+      authError.value = message
+      return { success: false, error: message }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   return {
     user,
     isAdmin,
+    isPremium,
+    premiumUntil,
     isLoading,
     isInitialized,
     authError,
@@ -217,6 +403,7 @@ export const useAppwriteAuth = () => {
     revokeSession,
     revokeAllOtherSessions,
     updateProfile,
-    updatePassword
+    updatePassword,
+    updatePremiumPreference
   }
 }
