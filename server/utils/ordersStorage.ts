@@ -64,12 +64,12 @@ function rowToOrderRecord(row: any): OrderRecord {
 /**
  * Membaca seluruh data pesanan langsung dari Appwrite Database (tabel `orders`)
  */
-export async function readOrders(): Promise<OrderRecord[]> {
+export async function readOrders(limit = 100): Promise<OrderRecord[]> {
   try {
     const { tablesDB, dbId } = getAppwriteOrdersDB()
     const rowsRes = await tablesDB.listRows(dbId, 'orders', [
       Query.orderDesc('$createdAt'),
-      Query.limit(100)
+      Query.limit(limit)
     ])
     if (Array.isArray(rowsRes.rows)) {
       return rowsRes.rows.map(rowToOrderRecord)

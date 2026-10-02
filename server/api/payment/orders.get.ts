@@ -21,10 +21,12 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Jika tanpa filter, kembalikan 50 pesanan terbaru
-  const allOrders = await readOrders()
+  const limit = Math.min(Math.max(Number(query.limit) || 100, 1), 500)
+
+  // Jika tanpa filter spesifik, kembalikan pesanan terbaru
+  const allOrders = await readOrders(limit)
   return {
     success: true,
-    orders: allOrders.slice(0, 50)
+    orders: allOrders
   }
 })
