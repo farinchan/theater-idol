@@ -45,6 +45,8 @@ const activeResolution = ref<string>('Auto')
 let hlsInstance: any = null
 let controlsTimeout: ReturnType<typeof setTimeout> | null = null
 
+const config = useRuntimeConfig()
+
 // Helper untuk mendeteksi apakah stream URL memerlukan server proxy (mengatasi blokir CORS / 403 Forbidden)
 const resolveStreamUrl = (rawUrl: string): string => {
   if (!rawUrl) return ''

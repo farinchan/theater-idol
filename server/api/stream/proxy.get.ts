@@ -10,9 +10,15 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  let targetUrl: string
+  let targetUrl = rawUrl
   try {
-    targetUrl = decodeURIComponent(rawUrl)
+    if (rawUrl.startsWith('http%3A') || rawUrl.startsWith('https%3A') || rawUrl.includes('%2F')) {
+      try {
+        targetUrl = decodeURIComponent(rawUrl)
+      } catch {
+        targetUrl = rawUrl
+      }
+    }
     // Validate protocol
     if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
       throw new Error('Invalid protocol')
@@ -51,8 +57,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const contentType = upstreamRes.headers.get('content-type') || ''
-    const reqUrl = getRequestURL(event)
-    const proxyBase = `${reqUrl.protocol}//${reqUrl.host}/api/stream/proxy`
+    const proxyBase = '/api/stream/proxy'
 
     // Selalu set header CORS agar browser bebas mengakses stream
     setResponseHeaders(event, {
@@ -105,7 +110,8 @@ export default defineEventHandler(async (event) => {
 
     // Jika bukan playlist m3u8 (misalnya file chunk video .ts / audio), kirim buffer langsung
     let outContentType = contentType
-    if (targetUrl.includes('.ts') || targetUrl.includes('/segment/')) {
+    const isTsSyncByte = buffer.byteLength > 0 && new Uint8Array(buffer)[0] === 0x47
+    if (isTsSyncByte || targetUrl.includes('.ts') || targetUrl.includes('/segment/')) {
       outContentType = 'video/mp2t'
     } else if (targetUrl.includes('.m4s')) {
       outContentType = 'video/iso.segment'
