@@ -45,10 +45,33 @@ const activeResolution = ref<string>('Auto')
 let hlsInstance: any = null
 let controlsTimeout: ReturnType<typeof setTimeout> | null = null
 
+// Helper untuk mendeteksi apakah stream URL memerlukan server proxy (mengatasi blokir CORS / 403 Forbidden)
+const resolveStreamUrl = (rawUrl: string): string => {
+  if (!rawUrl) return ''
+  const trimmed = rawUrl.trim()
+
+  if (trimmed.startsWith('/api/stream/proxy') || trimmed.includes('/api/stream/proxy?url=')) {
+    return trimmed
+  }
+
+  // Domain anti-hotlink yang mengunci Origin (misal Cloudflare Workers atau server external)
+  const isLockedOrigin =
+    trimmed.includes('thecmonofficial.workers.dev') ||
+    trimmed.includes('workers.dev/playback') ||
+    trimmed.includes('workers.dev/live') ||
+    trimmed.includes('stream.hanabira48.com')
+
+  if (isLockedOrigin) {
+    return `/api/stream/proxy?url=${encodeURIComponent(trimmed)}`
+  }
+
+  return trimmed
+}
+
 // Compute current effective URL
 const effectiveSrc = computed(() => {
   if (activeSrc.value && activeSrc.value.trim() !== '') {
-    return activeSrc.value.trim()
+    return resolveStreamUrl(activeSrc.value.trim())
   }
   return ''
 })
@@ -136,6 +159,13 @@ const initPlayer = async () => {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
+              // Jika terjadi network/CORS error pada URL langsung, coba otomatis alihkan ke proxy server internal
+              if (!url.includes('/api/stream/proxy') && activeSrc.value && !activeSrc.value.includes('/api/stream/proxy')) {
+                console.warn('[HlsPlayer] Terjadi Network/CORS error. Beralih otomatis ke server proxy...')
+                activeSrc.value = `/api/stream/proxy?url=${encodeURIComponent(activeSrc.value)}`
+                initPlayer()
+                return
+              }
               console.error('Fatal network error encountered, trying to recover...')
               hlsInstance.startLoad()
               break
@@ -312,6 +342,14 @@ const applyCustomUrl = () => {
   initPlayer()
 }
 
+const useProxyStream = () => {
+  if (activeSrc.value) {
+    activeSrc.value = `/api/stream/proxy?url=${encodeURIComponent(activeSrc.value)}`
+    isUsingDemo.value = false
+    initPlayer()
+  }
+}
+
 // Activity & Inactivity timers for controls auto-hide
 const triggerControlsActivity = () => {
   showControls.value = true
@@ -460,16 +498,24 @@ onBeforeUnmount(() => {
           <h3 class="font-bold text-sm text-red-400">Gagal Memuat Siaran</h3>
           <p class="text-xs text-neutral-300 mt-1 leading-relaxed">{{ errorMessage }}</p>
         </div>
-        <div class="flex items-center justify-center gap-2 pt-1">
+        <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
           <button
-            class="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-xs font-bold transition flex items-center gap-1.5"
+            class="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
             @click.stop="reloadStream"
           >
             <UIcon name="i-lucide-refresh-cw" class="w-3.5 h-3.5" />
             <span>Coba Lagi</span>
           </button>
           <button
-            class="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium transition"
+            v-if="!effectiveSrc.includes('/api/stream/proxy')"
+            class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-600/30"
+            @click.stop="useProxyStream"
+          >
+            <UIcon name="i-lucide-shield-check" class="w-3.5 h-3.5" />
+            <span>Putar via Server Proxy</span>
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium transition cursor-pointer"
             @click.stop="useDemoStream"
           >
             Uji Stream Demo
