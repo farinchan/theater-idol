@@ -1,6 +1,7 @@
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
-  const rawUrl = (query.url as string) || 'https://jkt48.thecmonofficial.workers.dev/playback'
+  const config = useRuntimeConfig()
+  const rawUrl = (query.url as string) || (config.streamUrl as string) || process.env.STREAM_URL || ''
 
   if (!rawUrl) {
     throw createError({
@@ -23,12 +24,18 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Spoof headers required by anti-hotlinking / origin-locked workers
+  const upstreamOrigin = (config.streamProxyOrigin as string) || process.env.STREAM_PROXY_ORIGIN || ''
+  const useProxy = config.streamUseProxy !== false && process.env.STREAM_USE_PROXY !== 'false'
+
+  // Headers for upstream request (Origin & Referer from STREAM_PROXY_ORIGIN in .env if enabled)
   const upstreamHeaders: Record<string, string> = {
-    'Origin': 'https://stream.hanabira48.com',
-    'Referer': 'https://stream.hanabira48.com/',
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Accept': '*/*'
+  }
+
+  if (useProxy && upstreamOrigin) {
+    upstreamHeaders['Origin'] = upstreamOrigin
+    upstreamHeaders['Referer'] = upstreamOrigin.endsWith('/') ? upstreamOrigin : `${upstreamOrigin}/`
   }
 
   try {

@@ -50,18 +50,15 @@ const resolveStreamUrl = (rawUrl: string): string => {
   if (!rawUrl) return ''
   const trimmed = rawUrl.trim()
 
-  if (trimmed.startsWith('/api/stream/proxy') || trimmed.includes('/api/stream/proxy?url=')) {
+  if (trimmed.startsWith('/')) {
     return trimmed
   }
 
-  // Domain anti-hotlink yang mengunci Origin (misal Cloudflare Workers atau server external)
-  const isLockedOrigin =
-    trimmed.includes('thecmonofficial.workers.dev') ||
-    trimmed.includes('workers.dev/playback') ||
-    trimmed.includes('workers.dev/live') ||
-    trimmed.includes('stream.hanabira48.com')
+  // Jika proxy aktif di pengaturan (STREAM_USE_PROXY di .env), lewatkan melalui endpoint proxy server
+  const isProxyDisabled =
+    config.public.streamUseProxy === false || (config.public as any).streamUseProxy === 'false'
 
-  if (isLockedOrigin) {
+  if (!isProxyDisabled) {
     return `/api/stream/proxy?url=${encodeURIComponent(trimmed)}`
   }
 

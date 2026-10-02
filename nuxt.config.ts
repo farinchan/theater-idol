@@ -17,9 +17,13 @@ export default defineNuxtConfig({
     sumopodWebhookSecret: process.env.SUMOPOD_WEBHOOK_SECRET || '',
     sumopodWebhookToken: process.env.SUMOPOD_WEBHOOK_TOKEN || '',
     appwriteApiKey: process.env.APPWRITE_API_KEY || '',
+    streamUrl: process.env.STREAM_URL || '',
+    streamUseProxy: process.env.STREAM_USE_PROXY !== 'false',
+    streamProxyOrigin: process.env.STREAM_PROXY_ORIGIN || '',
     public: {
       appName: process.env.APP_NAME || 'Pekerja48',
       streamUrl: process.env.STREAM_URL || process.env.NUXT_PUBLIC_STREAM_URL || '',
+      streamUseProxy: process.env.STREAM_USE_PROXY !== 'false',
       appwriteEndpoint: process.env.APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1',
       appwriteProjectId: process.env.APPWRITE_PROJECT_ID || '',
       appwriteDatabaseId: process.env.APPWRITE_DATABASE_ID || '',
