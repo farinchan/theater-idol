@@ -1,14 +1,13 @@
 <script setup lang="ts">
 const { appName } = useAppName()
 
-useHead({
-  title: `Kebijakan Privasi (Privacy Policy) - ${appName.value}`,
-  meta: [
-    {
-      name: 'description',
-      content: `Kebijakan privasi portal komunitas ${appName.value}. Pelajari bagaimana kami melindungi data akun, privasi pengguna, dan keamanan transaksi Anda.`
-    }
-  ]
+useSeoMeta({
+  title: 'Kebijakan Privasi - Theater Idol',
+  ogTitle: 'Kebijakan Privasi - Theater Idol',
+  description: 'Kebijakan privasi portal Theater Idol. Pelajari bagaimana kami melindungi data akun, privasi pengguna, dan keamanan transaksi Anda.',
+  ogDescription: 'Kebijakan privasi portal Theater Idol. Pelajari bagaimana kami melindungi data akun, privasi pengguna, dan keamanan transaksi Anda.',
+  ogImage: '/icon.png',
+  ogType: 'website'
 })
 
 const lastUpdated = '3 Oktober 2026'

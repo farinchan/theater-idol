@@ -3,6 +3,12 @@ const router = useRouter()
 const { appName } = useAppName()
 const { user, login, register, isLoading, authError } = useAppwriteAuth()
 
+useSeoMeta({
+  title: 'Masuk / Daftar Akun - Theater Idol',
+  description: 'Masuk atau buat akun baru di Theater Idol untuk menikmati fitur interaktif live chat, pembelian member premium, dan akses eksklusif.',
+  robots: 'noindex, follow'
+})
+
 const mode = ref<'login' | 'register'>('login')
 const form = reactive({
   name: '',

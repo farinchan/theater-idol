@@ -1,14 +1,13 @@
 <script setup lang="ts">
 const { appName } = useAppName()
 
-useHead({
-  title: `Ketentuan Layanan (Terms of Service) - ${appName.value}`,
-  meta: [
-    {
-      name: 'description',
-      content: `Syarat dan ketentuan layanan penggunaan portal komunitas penggemar ${appName.value}. Tata tertib live stream, arsip replay, etika live chat, dan transaksi membership.`
-    }
-  ]
+useSeoMeta({
+  title: 'Syarat & Ketentuan Layanan - Theater Idol',
+  ogTitle: 'Syarat & Ketentuan Layanan - Theater Idol',
+  description: 'Syarat dan ketentuan layanan penggunaan portal Theater Idol, tata tertib live stream, arsip video replay, etika live chat, dan transaksi membership.',
+  ogDescription: 'Syarat dan ketentuan layanan penggunaan portal Theater Idol, tata tertib live stream, arsip video replay, etika live chat, dan transaksi membership.',
+  ogImage: '/icon.png',
+  ogType: 'website'
 })
 
 const lastUpdated = '3 Oktober 2026'

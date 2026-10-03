@@ -3,6 +3,15 @@
 const { shows: appwriteShows, fetchShows, isLoading: isShowsLoading } = useAppwriteShow()
 const { setlists, fetchSetlists } = useAppwriteSetlist()
 
+useSeoMeta({
+  title: 'Riwayat Show Theater Idol Sebelumnya',
+  ogTitle: 'Riwayat Show Theater Idol Sebelumnya',
+  description: 'Arsip riwayat pertunjukan show Theater Idol yang telah selesai digelar beserta info line-up member penampil dan setlist.',
+  ogDescription: 'Arsip riwayat pertunjukan show Theater Idol yang telah selesai digelar beserta info line-up member penampil dan setlist.',
+  ogImage: '/icon.png',
+  ogType: 'website'
+})
+
 // Ambil data jadwal show & setlist dari database tablesDB (SSR & Client Hydration)
 await useAsyncData('riwayat_page_data', async () => {
   await Promise.all([fetchShows(), fetchSetlists()])

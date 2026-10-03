@@ -3,8 +3,42 @@ const route = useRoute()
 const { appName } = useAppName()
 const { user, isPremium, premiumUntil, checkSession, isLoading, isInitialized } = useAppwriteAuth()
 
+useSeoMeta({
+  title: 'Beli Membership Premium - Theater Idol',
+  ogTitle: 'Beli Membership Premium - Theater Idol',
+  description: 'Langganan Member Premium Theater Idol untuk menikmati tayangan live streaming tanpa batas, akses arsip replay eksklusif, dan badge interaktif.',
+  ogDescription: 'Langganan Member Premium Theater Idol untuk menikmati tayangan live streaming tanpa batas, akses arsip replay eksklusif, dan badge interaktif.',
+  ogImage: '/icon.png',
+  ogType: 'website',
+  twitterCard: 'summary_large_image',
+  twitterTitle: 'Beli Membership Premium - Theater Idol',
+  twitterDescription: 'Langganan Member Premium Theater Idol untuk menikmati tayangan live streaming tanpa batas, akses arsip replay eksklusif, dan badge interaktif.',
+  twitterImage: '/icon.png'
+})
+
 useHead({
-  title: `Pembayaran & Member Premium - ${appName.value}`
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        'name': 'Member Premium Theater Idol',
+        'description': 'Akses langganan VIP untuk nonton live streaming dan arsip replay show Theater Idol.',
+        'brand': {
+          '@type': 'Brand',
+          'name': 'Theater Idol'
+        },
+        'offers': {
+          '@type': 'AggregateOffer',
+          'priceCurrency': 'IDR',
+          'lowPrice': '12000',
+          'highPrice': '99000',
+          'offerCount': '4'
+        }
+      })
+    }
+  ]
 })
 
 export interface PremiumPlanOption {

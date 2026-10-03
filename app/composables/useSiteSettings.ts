@@ -13,7 +13,7 @@ export interface SiteSettings {
 
 export const useSiteSettings = () => {
   const settings = useState<SiteSettings>('site_settings', () => ({
-    appName: 'Pekerja48',
+    appName: 'Theater Idol',
     isStreamEnabled: true,
     isReplayEnabled: true,
     isStreamRequireLogin: false,
@@ -36,7 +36,7 @@ export const useSiteSettings = () => {
   const isReplayRequireLogin = computed(() => settings.value?.isReplayRequireLogin ?? false)
   const isStreamRequirePremium = computed(() => settings.value?.isStreamRequirePremium ?? false)
   const isReplayRequirePremium = computed(() => settings.value?.isReplayRequirePremium ?? false)
-  const appName = computed(() => settings.value?.appName || 'Pekerja48')
+  const appName = computed(() => settings.value?.appName || 'Theater Idol')
   const streamNotice = computed(() => settings.value?.streamNotice || 'Fitur Live Stream sedang ditutup.')
   const replayNotice = computed(() => settings.value?.replayNotice || 'Fitur Arsip Replay sedang ditutup.')
 

@@ -5,8 +5,32 @@ const { user, isPremium, isAdmin } = useAppwriteAuth()
 const { shows: appwriteShows, fetchShows, isLoading: isShowsLoading } = useAppwriteShow()
 const { setlists, fetchSetlists, isLoading: isSetlistsLoading } = useAppwriteSetlist()
 
+useSeoMeta({
+  title: 'Katalog Video Replay Pertunjukan Theater Idol',
+  ogTitle: 'Katalog Video Replay Pertunjukan Theater Idol Terlengkap',
+  description: 'Tonton kembali rekaman pertunjukan Theater Idol favorit Anda kapan saja. Arsip video show lengkap dari berbagai setlist dengan kualitas audio visual HD jernih.',
+  ogDescription: 'Tonton kembali rekaman pertunjukan Theater Idol favorit Anda kapan saja. Arsip video show lengkap dari berbagai setlist dengan kualitas audio visual HD jernih.',
+  ogImage: '/icon.png',
+  ogType: 'video.other',
+  twitterCard: 'summary_large_image',
+  twitterTitle: 'Katalog Video Replay Pertunjukan Theater Idol Terlengkap',
+  twitterDescription: 'Tonton kembali rekaman pertunjukan Theater Idol favorit Anda kapan saja. Arsip video show lengkap dari berbagai setlist dengan kualitas audio visual HD jernih.',
+  twitterImage: '/icon.png'
+})
+
 useHead({
-  title: `Replay Pertunjukan - ${appName}`
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        'name': 'Katalog Video Replay Theater Idol',
+        'description': 'Koleksi arsip rekaman video pertunjukan Theater Idol',
+        'url': 'https://theater-idol.web.id/replay'
+      })
+    }
+  ]
 })
 
 // Muat data show & setlist (SSR & Client Hydration)

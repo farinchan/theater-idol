@@ -8,6 +8,36 @@ const config = useRuntimeConfig()
 const streamUrl = computed(() => (config.public.streamUrl as string) || '')
 const { isStreamEnabled, isStreamRequireLogin, isStreamRequirePremium, streamNotice } = useSiteSettings()
 
+useSeoMeta({
+  title: 'Live Streaming Theater Idol - Nonton Siaran Langsung Online',
+  ogTitle: 'Live Streaming Theater Idol - Nonton Siaran Langsung Online',
+  description: 'Saksikan siaran langsung pertunjukan Theater Idol secara real-time dengan kualitas streaming HD jernih dan fitur live chat interaktif.',
+  ogDescription: 'Saksikan siaran langsung pertunjukan Theater Idol secara real-time dengan kualitas streaming HD jernih dan fitur live chat interaktif.',
+  ogImage: '/icon.png',
+  ogType: 'video.other',
+  twitterCard: 'summary_large_image',
+  twitterTitle: 'Live Streaming Theater Idol - Nonton Siaran Langsung Online',
+  twitterDescription: 'Saksikan siaran langsung pertunjukan Theater Idol secara real-time dengan kualitas streaming HD jernih dan fitur live chat interaktif.',
+  twitterImage: '/icon.png'
+})
+
+useHead({
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'BroadcastEvent',
+        'name': 'Live Streaming Theater Idol',
+        'description': 'Siaran langsung pertunjukan panggung Theater Idol',
+        'isLiveBroadcast': true,
+        'videoFormat': 'HD',
+        'url': 'https://theater-idol.web.id/stream'
+      })
+    }
+  ]
+})
+
 // Realtime Live Chat State
 const {
   messages,

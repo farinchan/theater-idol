@@ -3,6 +3,34 @@
 const { shows: appwriteShows, fetchShows, isLoading: isShowsLoading } = useAppwriteShow()
 const { setlists, fetchSetlists } = useAppwriteSetlist()
 
+useSeoMeta({
+  title: 'Jadwal Show Theater Idol Terupdate & Terlengkap',
+  ogTitle: 'Jadwal Show Theater Idol - Info Line Up Member & Jam Tayang',
+  description: 'Cek jadwal pertunjukan panggung Theater Idol terbaru, informasi setlist, daftar member penampil, dan jam tayang live streaming.',
+  ogDescription: 'Cek jadwal pertunjukan panggung Theater Idol terbaru, informasi setlist, daftar member penampil, dan jam tayang live streaming.',
+  ogImage: '/icon.png',
+  ogType: 'website',
+  twitterCard: 'summary_large_image',
+  twitterTitle: 'Jadwal Show Theater Idol - Info Line Up Member & Jam Tayang',
+  twitterDescription: 'Cek jadwal pertunjukan panggung Theater Idol terbaru, informasi setlist, daftar member penampil, dan jam tayang live streaming.',
+  twitterImage: '/icon.png'
+})
+
+useHead({
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        'name': 'Jadwal Show Theater Idol',
+        'description': 'Daftar jadwal show dan pertunjukan Theater Idol terkini',
+        'url': 'https://theater-idol.web.id/jadwal'
+      })
+    }
+  ]
+})
+
 // Ambil data jadwal show & setlist dari database tablesDB (SSR & Client Hydration)
 await useAsyncData('jadwal_page_data', async () => {
   await Promise.all([fetchShows(), fetchSetlists()])

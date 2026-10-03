@@ -4,8 +4,45 @@ const { isStreamEnabled, isReplayEnabled } = useSiteSettings()
 const { shows: appwriteShows, fetchShows, isLoading: isShowsLoading } = useAppwriteShow()
 const { setlists, fetchSetlists, isLoading: isSetlistsLoading } = useAppwriteSetlist()
 
+useSeoMeta({
+  title: 'Beranda - Nonton Live Streaming & Replay Pertunjukan Theater Idol',
+  ogTitle: 'Theater Idol - Nonton Live Streaming & Replay Pertunjukan Theater Idol',
+  description: 'Nikmati siaran langsung interaktif dan katalog arsip video replay pertunjukan Theater Idol favorit Anda dengan kualitas audio visual HD terbaik.',
+  ogDescription: 'Nikmati siaran langsung interaktif dan katalog arsip video replay pertunjukan Theater Idol favorit Anda dengan kualitas audio visual HD terbaik.',
+  ogImage: '/icon.png',
+  ogType: 'website',
+  twitterCard: 'summary_large_image',
+  twitterTitle: 'Theater Idol - Nonton Live Streaming & Replay Pertunjukan Theater Idol',
+  twitterDescription: 'Nikmati siaran langsung interaktif dan katalog arsip video replay pertunjukan Theater Idol favorit Anda dengan kualitas audio visual HD terbaik.',
+  twitterImage: '/icon.png'
+})
+
 useHead({
-  title: `Beranda - ${appName.value}`
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@graph': [
+          {
+            '@type': 'WebSite',
+            '@id': 'https://theater-idol.web.id/#website',
+            'url': 'https://theater-idol.web.id/',
+            'name': 'Theater Idol',
+            'description': 'Platform Nonton Live Streaming & Replay Show Theater Idol.',
+            'inLanguage': 'id-ID'
+          },
+          {
+            '@type': 'Organization',
+            '@id': 'https://theater-idol.web.id/#organization',
+            'name': 'Theater Idol',
+            'url': 'https://theater-idol.web.id/',
+            'logo': 'https://theater-idol.web.id/icon.png'
+          }
+        ]
+      })
+    }
+  ]
 })
 
 // State waktu reaktif untuk pembaruan realtime status live

@@ -3,7 +3,7 @@ export const useAppName = () => {
   const config = useRuntimeConfig()
 
   const appName = computed(() => {
-    return settingsAppName.value || (config.public.appName as string) || 'Pekerja48'
+    return settingsAppName.value || (config.public.appName as string) || 'Theater Idol'
   })
 
   return {

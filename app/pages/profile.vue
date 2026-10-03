@@ -11,6 +11,12 @@ const {
   updatePassword
 } = useAppwriteAuth()
 
+useSeoMeta({
+  title: 'Profil Pengguna - Theater Idol',
+  description: 'Kelola data profil pengguna, keamanan akun, dan sesi aktif di Theater Idol.',
+  robots: 'noindex, nofollow'
+})
+
 const activeTab = ref<'sessions' | 'edit-profile'>('sessions')
 
 // Sessions state

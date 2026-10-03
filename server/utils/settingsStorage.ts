@@ -14,7 +14,7 @@ export interface SiteSettings {
 }
 
 export const DEFAULT_SETTINGS: SiteSettings = {
-  appName: 'Pekerja48',
+  appName: 'Theater Idol',
   isStreamEnabled: true,
   isReplayEnabled: true,
   isStreamRequireLogin: false,
@@ -94,7 +94,7 @@ export async function writeSiteSettings(newSettings: Partial<SiteSettings>): Pro
   const updated: SiteSettings = {
     ...current,
     ...newSettings,
-    appName: (newSettings.appName !== undefined ? newSettings.appName : current.appName || 'Pekerja48').trim(),
+    appName: (newSettings.appName !== undefined ? newSettings.appName : current.appName || 'Theater Idol').trim(),
     isStreamEnabled: typeof newSettings.isStreamEnabled === 'boolean' ? newSettings.isStreamEnabled : current.isStreamEnabled,
     isReplayEnabled: typeof newSettings.isReplayEnabled === 'boolean' ? newSettings.isReplayEnabled : current.isReplayEnabled,
     isStreamRequireLogin: typeof newSettings.isStreamRequireLogin === 'boolean' ? newSettings.isStreamRequireLogin : current.isStreamRequireLogin,

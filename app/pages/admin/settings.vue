@@ -30,7 +30,7 @@ const form = reactive({
 // Inisialisasi nilai form dari settings Appwrite
 const syncFormWithSettings = () => {
   if (settings.value) {
-    form.appName = settings.value.appName || 'Pekerja48'
+    form.appName = settings.value.appName || 'Theater Idol'
     form.isStreamEnabled = settings.value.isStreamEnabled ?? true
     form.isReplayEnabled = settings.value.isReplayEnabled ?? true
     form.isStreamRequireLogin = settings.value.isStreamRequireLogin ?? false
@@ -55,7 +55,7 @@ watch(settings, () => {
 const isDirty = computed(() => {
   if (!settings.value) return false
   return (
-    form.appName !== (settings.value.appName || 'Pekerja48') ||
+    form.appName !== (settings.value.appName || 'Theater Idol') ||
     form.isStreamEnabled !== (settings.value.isStreamEnabled ?? true) ||
     form.isReplayEnabled !== (settings.value.isReplayEnabled ?? true) ||
     form.isStreamRequireLogin !== (settings.value.isStreamRequireLogin ?? false) ||
@@ -97,7 +97,7 @@ const handleSave = async () => {
 // Action Reset ke Default
 const handleResetToDefault = () => {
   if (confirm('Kembalikan semua formulir pengaturan ke konfigurasi default?')) {
-    form.appName = 'Pekerja48'
+    form.appName = 'Theater Idol'
     form.isStreamEnabled = true
     form.isReplayEnabled = true
     form.isStreamRequireLogin = false
@@ -283,7 +283,7 @@ const formattedUpdatedAt = computed(() => {
                 </p>
               </div>
               <UBadge color="primary" variant="subtle" size="xs" class="font-bold">
-                Aktif: {{ form.appName || 'Pekerja48' }}
+                Aktif: {{ form.appName || 'Theater Idol' }}
               </UBadge>
             </div>
 
@@ -293,13 +293,13 @@ const formattedUpdatedAt = computed(() => {
               </label>
               <UInput
                 v-model="form.appName"
-                placeholder="Contoh: Pekerja48"
+                placeholder="Contoh: Theater Idol"
                 size="md"
                 icon="i-lucide-type"
                 class="w-full font-bold"
               />
               <p class="text-[11px] text-neutral-400">
-                Disarankan nama pendek dan padat (1-2 kata). Default: <strong>Pekerja48</strong>.
+                Disarankan nama pendek dan padat (1-2 kata). Default: <strong>Theater Idol</strong>.
               </p>
             </div>
           </div>

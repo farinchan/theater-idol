@@ -214,7 +214,8 @@ const handleLogout = async () => {
   <div class="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col md:flex-row transition-colors">
     <!-- Mobile Topbar -->
     <header class="md:hidden sticky top-0 z-40 h-16 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 px-4 flex items-center justify-between">
-      <NuxtLink to="/" class="flex items-center gap-2">
+      <NuxtLink to="/" class="flex items-center gap-2.5">
+        <img src="/icon.png" alt="Theater Idol Logo" class="w-7 h-7 rounded-xl object-cover shadow-xs" />
         <span class="font-extrabold text-base tracking-tight uppercase">{{ appName }}</span>
       </NuxtLink>
 
@@ -264,7 +265,8 @@ const handleLogout = async () => {
       <!-- Sidebar Header -->
       <div class="p-6 border-b border-neutral-100 dark:border-neutral-800/80">
         <div class="flex items-center justify-between">
-          <NuxtLink to="/" class="flex items-center" @click="isMobileOpen = false">
+          <NuxtLink to="/" class="flex items-center gap-2.5" @click="isMobileOpen = false">
+            <img src="/icon.png" alt="Theater Idol Logo" class="w-8 h-8 rounded-xl object-cover shadow-xs" />
             <div class="font-extrabold text-lg tracking-tight leading-tight uppercase">{{ appName }}</div>
           </NuxtLink>
 
@@ -580,5 +582,10 @@ const handleLogout = async () => {
         </div>
       </footer>
     </div>
+
+    <!-- PWA Install Prompt Banner -->
+    <ClientOnly>
+      <PwaBanner />
+    </ClientOnly>
   </div>
 </template>

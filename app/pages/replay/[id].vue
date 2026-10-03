@@ -103,11 +103,51 @@ const lineupList = computed(() => {
 // Title & Meta SEO
 const pageTitle = computed(() => {
   const showTitle = relatedSetlist.value?.title_id || 'Pertunjukan Teater'
-  return `Replay: ${showTitle} - ${appName}`
+  return `Replay ${showTitle}`
+})
+
+const pageDescription = computed(() => {
+  const showTitle = relatedSetlist.value?.title_id || 'Pertunjukan Teater'
+  const dateStr = currentShow.value ? formatIndonesianDate(currentShow.value.date) : ''
+  return `Nonton rekaman video replay pertunjukan ${showTitle}${dateStr ? ' tanggal ' + dateStr : ''} kualitas HD di Theater Idol.`
+})
+
+const pagePoster = computed(() => {
+  return currentShow.value?.poster || relatedSetlist.value?.poster || '/icon.png'
+})
+
+useSeoMeta({
+  title: pageTitle,
+  ogTitle: pageTitle,
+  description: pageDescription,
+  ogDescription: pageDescription,
+  ogImage: pagePoster,
+  ogType: 'video.other',
+  twitterCard: 'summary_large_image',
+  twitterTitle: pageTitle,
+  twitterDescription: pageDescription,
+  twitterImage: pagePoster
 })
 
 useHead({
-  title: pageTitle
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: computed(() => JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'VideoObject',
+        'name': pageTitle.value,
+        'description': pageDescription.value,
+        'thumbnailUrl': [pagePoster.value],
+        'uploadDate': currentShow.value?.date || new Date().toISOString(),
+        'publisher': {
+          '@type': 'Organization',
+          'name': 'Theater Idol',
+          'logo': 'https://theater-idol.web.id/icon.png'
+        }
+      }))
+    }
+  ]
 })
 
 // Pertunjukan replay lainnya (Rekomendasi replay lainnya)
