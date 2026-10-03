@@ -20,12 +20,14 @@ const mediaTargetRef = ref<HTMLElement | null>(null)
 let plyrInstance: any = null
 let hlsInstance: any = null
 let captionCheckTimer: ReturnType<typeof setTimeout> | null = null
+let menuObserver: MutationObserver | null = null
 
 const isLoading = ref(true)
 const isPlaying = ref(false)
 const hasStarted = ref(false)
 const isEnded = ref(false)
 const hasError = ref(false)
+const isMenuOpen = ref(false)
 const errorMessage = ref('')
 const playerKey = ref(0)
 
@@ -152,6 +154,50 @@ const setupQualityMenu = (player: any) => {
   qualityBtn.removeAttribute('hidden')
   qualityBtn.style.display = ''
 
+  // Pantau status buka-tutup menu agar tombol dan bar kontrol tidak hilang saat mouse bergerak ke atas
+  const container = player.elements?.container
+  if (container && !menuObserver) {
+    menuObserver = new MutationObserver(() => {
+      const open = container.classList.contains('plyr--menu-open') || Boolean(container.querySelector('[aria-expanded="true"]'))
+      isMenuOpen.value = open
+      if (open && player.elements?.controls) {
+        player.elements.controls.hover = true
+      }
+    })
+    menuObserver.observe(container, {
+      attributes: true,
+      attributeFilter: ['class'],
+      subtree: true
+    })
+  }
+
+  // Jaga agar controls tetap dianggap aktif saat mouse di atas popup menu settings
+  const popup = player.elements?.settings?.popup || player.elements?.settings?.menu
+  if (popup) {
+    popup.addEventListener('mouseenter', () => {
+      isMenuOpen.value = true
+      if (player.elements?.controls) {
+        player.elements.controls.hover = true
+      }
+    })
+    popup.addEventListener('mousemove', () => {
+      isMenuOpen.value = true
+      if (player.elements?.controls) {
+        player.elements.controls.hover = true
+      }
+    })
+  }
+
+  const settingsBtn = player.elements?.buttons?.settings
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', () => {
+      isMenuOpen.value = true
+      if (player.elements?.controls) {
+        player.elements.controls.hover = true
+      }
+    })
+  }
+
   // Baca kualitas yang sebelumnya tersimpan (default 720p)
   let currentVal: number | string = 720
   try {
@@ -253,6 +299,12 @@ const togglePlay = () => {
 
 // Bersihkan instance pemutar sebelum inisialisasi ulang
 const destroyPlayer = () => {
+  if (menuObserver) {
+    menuObserver.disconnect()
+    menuObserver = null
+  }
+  isMenuOpen.value = false
+
   if (captionCheckTimer) {
     clearTimeout(captionCheckTimer)
     captionCheckTimer = null
@@ -288,6 +340,7 @@ const initPlayer = async () => {
   hasStarted.value = false
   isEnded.value = false
   hasError.value = false
+  isMenuOpen.value = false
   errorMessage.value = ''
   playerKey.value++
 
@@ -520,10 +573,10 @@ onBeforeUnmount(() => {
       />
     </div>
 
-    <!-- Area Klik Play/Pause Transparan (Hanya area video di atas kontrol bar) -->
+    <!-- Area Klik Play/Pause Transparan (Nonaktif ketika menu settings sedang terbuka) -->
     <div
-      v-if="src && !hasError && !isEnded"
-      class="absolute inset-x-0 top-0 bottom-14 z-10 cursor-pointer"
+      v-if="src && !hasError && !isEnded && !isMenuOpen"
+      class="video-click-overlay absolute inset-x-0 top-0 bottom-14 z-10 cursor-pointer"
       @click="togglePlay"
     />
 
@@ -624,6 +677,32 @@ onBeforeUnmount(() => {
 .theater-replay-container .plyr__controls {
   z-index: 30 !important;
   position: absolute !important;
+}
+
+/* Jangan pernah sembunyikan kontrol ketika menu pengaturan (settings/quality/speed) sedang terbuka */
+.theater-replay-container .plyr.plyr--menu-open .plyr__controls,
+.theater-replay-container .plyr--hide-controls.plyr--menu-open .plyr__controls,
+.theater-replay-container .plyr:has(.plyr__menu__container:not([hidden])) .plyr__controls,
+.theater-replay-container .plyr:has([aria-expanded="true"]) .plyr__controls,
+.theater-replay-container:has(.plyr--menu-open) .plyr__controls,
+.theater-replay-container:has([aria-expanded="true"]) .plyr__controls {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: translateY(0) !important;
+  visibility: visible !important;
+}
+
+/* Pastikan popup menu settings selalu berada di atas semua overlay */
+.theater-replay-container .plyr__menu__container {
+  z-index: 50 !important;
+  pointer-events: auto !important;
+}
+
+/* Matikan overlay play/pause ketika menu settings sedang terbuka agar mouse bisa bebas memilih opsi */
+.theater-replay-container .plyr--menu-open ~ .video-click-overlay,
+.theater-replay-container:has(.plyr--menu-open) .video-click-overlay,
+.theater-replay-container:has([aria-expanded="true"]) .video-click-overlay {
+  pointer-events: none !important;
 }
 
 /* Sembunyikan tombol overlay bawaan Plyr agar tidak bertumpuk */
