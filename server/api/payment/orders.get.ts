@@ -4,6 +4,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const orderId = query.order_id as string
   const userId = query.user_id as string
+  const userEmail = query.user_email as string
 
   if (orderId) {
     const order = await getOrderByOrderId(orderId)
@@ -13,8 +14,8 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  if (userId) {
-    const orders = await getOrdersByUserId(userId)
+  if (userId || userEmail) {
+    const orders = await getOrdersByUserId(userId, userEmail)
     return {
       success: true,
       orders

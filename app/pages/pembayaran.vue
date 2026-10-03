@@ -171,23 +171,52 @@ const serverOrders = ref<any[]>([])
 
 const fetchOrders = async () => {
   if (!import.meta.client) return
+  if (!user.value?.$id) {
+    serverOrders.value = []
+    return
+  }
   try {
-    const queryParam = user.value?.$id ? `?user_id=${user.value.$id}` : ''
-    const res = await $fetch<any>(`/api/payment/orders${queryParam}`)
+    const params = new URLSearchParams()
+    if (user.value.$id) params.set('user_id', user.value.$id)
+    if (user.value.email) params.set('user_email', user.value.email)
+
+    const res = await $fetch<any>(`/api/payment/orders?${params.toString()}`)
     if (res?.success && Array.isArray(res.orders)) {
       serverOrders.value = res.orders
+    } else {
+      serverOrders.value = []
     }
   } catch (err) {
     console.error('Gagal mengambil daftar pesanan:', err)
   }
 }
 
-// Gabungan transaksi
+// Pantau perubahan status akun user untuk mengambil transaksi yang sesuai
+watch(() => user.value?.$id, async (newId) => {
+  if (newId) {
+    await fetchOrders()
+  } else {
+    serverOrders.value = []
+  }
+})
+
+// Gabungan transaksi khusus pengguna yang sedang login
 const allTransactions = computed<PremiumTransaction[]>(() => {
+  if (!user.value) return []
+
+  const currentUserId = user.value.$id
+  const currentUserEmail = user.value.email?.trim().toLowerCase()
+
   const list: PremiumTransaction[] = []
 
-  // 1. Data dari server orders
+  // Hanya masukkan data dari server orders milik user ini
   for (const o of serverOrders.value) {
+    const matchId = currentUserId && o.userId && o.userId === currentUserId
+    const matchEmail = currentUserEmail && o.userEmail && o.userEmail.trim().toLowerCase() === currentUserEmail
+    if (o.userId || o.userEmail) {
+      if (!matchId && !matchEmail) continue
+    }
+
     const dateFormatted = `${formatIndoDateTime(o.createdAt)}${formatIndoTime(o.createdAt) ? ', ' + formatIndoTime(o.createdAt) : ''}`
     list.push({
       id: o.id,
@@ -201,34 +230,6 @@ const allTransactions = computed<PremiumTransaction[]>(() => {
       expiredAt: o.paidAt ? formatIndoDateTime(new Date(new Date(o.paidAt).getTime() + o.durationDays * 24 * 60 * 60 * 1000).toISOString()) : undefined,
       paymentLinkUrl: o.paymentLinkUrl
     })
-  }
-
-  // 2. Demo transaksi jika belum ada transaksi di server
-  if (list.length === 0) {
-    list.push(
-      {
-        id: 'INV-PREM-202609-8812',
-        date: '25 September 2026, 14:32 WIB',
-        planId: 'plan_30d',
-        planName: 'Member Premium 30 Hari',
-        durationDays: 30,
-        amount: 30000,
-        method: 'QRIS',
-        status: 'completed',
-        expiredAt: '25 Oktober 2026'
-      },
-      {
-        id: 'INV-PREM-202608-4109',
-        date: '25 Agustus 2026, 19:15 WIB',
-        planId: 'plan_14d',
-        planName: 'Member Premium 14 Hari',
-        durationDays: 14,
-        amount: 20000,
-        method: 'QRIS',
-        status: 'completed',
-        expiredAt: '8 September 2026'
-      }
-    )
   }
 
   return list
@@ -567,7 +568,7 @@ const formatRupiah = (val: number) => {
     <!-- ==================================================== -->
     <!-- 2. CARD RIWAYAT TRANSAKSI PEMBELIAN PREMIUM (BOTTOM) -->
     <!-- ==================================================== -->
-    <section class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6 sm:p-8 shadow-xs space-y-4">
+    <section v-if="user" class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6 sm:p-8 shadow-xs space-y-4">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-100 dark:border-neutral-800 pb-4">
         <div>
           <h2 class="text-lg font-bold flex items-center gap-2 text-neutral-900 dark:text-white">

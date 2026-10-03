@@ -184,19 +184,46 @@ export async function getOrderByOrderId(orderId: string): Promise<OrderRecord | 
 /**
  * Mengambil daftar riwayat pesanan milik pengguna tertentu dari Appwrite Database
  */
-export async function getOrdersByUserId(userId: string): Promise<OrderRecord[]> {
-  try {
-    const { tablesDB, dbId } = getAppwriteOrdersDB()
-    const searchRes = await tablesDB.listRows(dbId, 'orders', [
-      Query.equal('user_id', userId),
-      Query.orderDesc('$createdAt'),
-      Query.limit(50)
-    ])
-    if (Array.isArray(searchRes.rows)) {
-      return searchRes.rows.map(rowToOrderRecord)
+export async function getOrdersByUserId(userId?: string, userEmail?: string): Promise<OrderRecord[]> {
+  const cleanUserId = userId ? String(userId).trim() : ''
+  const cleanEmail = userEmail ? String(userEmail).trim().toLowerCase() : ''
+
+  if (!cleanUserId && !cleanEmail) return []
+
+  let results: OrderRecord[] = []
+
+  // 1. Coba query langsung via Appwrite jika user_id tersedia
+  if (cleanUserId) {
+    try {
+      const { tablesDB, dbId } = getAppwriteOrdersDB()
+      const searchRes = await tablesDB.listRows(dbId, 'orders', [
+        Query.equal('user_id', cleanUserId),
+        Query.orderDesc('$createdAt'),
+        Query.limit(50)
+      ])
+      if (Array.isArray(searchRes.rows) && searchRes.rows.length > 0) {
+        results = searchRes.rows.map(rowToOrderRecord)
+      }
+    } catch (err: any) {
+      console.warn('[OrdersStorage] Query direct user_id gagal, beralih ke fallback list:', err?.message)
     }
+  }
+
+  // Jika hasil ditemukan, kembalikan
+  if (results.length > 0) {
+    return results
+  }
+
+  // 2. Fallback: baca riwayat pesanan dan filter in-memory berdasarkan user_id atau user_email
+  try {
+    const all = await readOrders(200)
+    return all.filter((order) => {
+      const matchId = cleanUserId && order.userId && order.userId === cleanUserId
+      const matchEmail = cleanEmail && order.userEmail && order.userEmail.toLowerCase() === cleanEmail
+      return Boolean(matchId || matchEmail)
+    })
   } catch (err: any) {
-    console.error('[OrdersStorage] Gagal mengambil pesanan user dari Appwrite Database:', err?.message)
+    console.error('[OrdersStorage] Gagal fallback pesanan user:', err?.message)
   }
 
   return []
