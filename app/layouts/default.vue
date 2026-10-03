@@ -175,6 +175,13 @@ const adminNavItems: NavItem[] = [
     description: 'Kelola jadwal & data pertunjukan'
   },
   {
+    label: 'Management Pengguna',
+    to: '/admin/users',
+    icon: 'i-lucide-users',
+    badge: null,
+    description: 'Kelola akun, hak akses & member premium'
+  },
+  {
     label: 'Riwayat Pembayaran',
     to: '/admin/orders',
     icon: 'i-lucide-receipt',
