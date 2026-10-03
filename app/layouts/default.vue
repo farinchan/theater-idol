@@ -563,6 +563,8 @@ const handleLogout = async () => {
               <NuxtLink to="/jadwal" class="hover:text-primary transition-colors">Jadwal Show</NuxtLink>
               <NuxtLink to="/pembayaran" class="hover:text-primary transition-colors">Pembayaran</NuxtLink>
               <NuxtLink to="/profile" class="hover:text-primary transition-colors">Profil</NuxtLink>
+              <NuxtLink to="/privacy" class="hover:text-primary transition-colors">Kebijakan Privasi</NuxtLink>
+              <NuxtLink to="/terms" class="hover:text-primary transition-colors">Ketentuan Layanan</NuxtLink>
             </div>
           </div>
           <p class="text-[11px] text-neutral-400 dark:text-neutral-500 text-center sm:text-left leading-relaxed">
