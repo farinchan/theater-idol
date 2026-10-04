@@ -9,7 +9,7 @@ const databaseId = process.env.APPWRITE_DATABASE_ID || ''
 const apiKey = process.env.APPWRITE_API_KEY
 
 const SETTINGS_COLUMNS = [
-  { type: 'string', key: 'app_name', size: 255, required: false, default: 'Pekerja48' },
+  { type: 'string', key: 'app_name', size: 255, required: false, default: 'Theater Idol' },
   { type: 'boolean', key: 'is_stream_enabled', required: false, default: true },
   { type: 'boolean', key: 'is_replay_enabled', required: false, default: true },
   { type: 'boolean', key: 'is_stream_require_login', required: false, default: false },
