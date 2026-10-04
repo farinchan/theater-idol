@@ -22,6 +22,7 @@ useHead({
 </script>
 
 <template>
+  <VitePwaManifest />
   <UApp>
     <NuxtRouteAnnouncer />
     <NuxtLayout>

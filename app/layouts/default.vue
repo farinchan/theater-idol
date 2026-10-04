@@ -205,6 +205,13 @@ const userInitials = computed(() => {
   return name.slice(0, 2).toUpperCase()
 })
 
+const { isInstalled, install } = usePwaInstall()
+
+const handleInstallApp = () => {
+  isMobileOpen.value = false
+  install()
+}
+
 const handleLogout = async () => {
   await logout()
 }
@@ -219,7 +226,19 @@ const handleLogout = async () => {
         <span class="font-extrabold text-base tracking-tight uppercase">{{ appName }}</span>
       </NuxtLink>
 
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5">
+        <UButton
+          v-if="!isInstalled"
+          icon="i-lucide-download"
+          color="primary"
+          variant="subtle"
+          size="xs"
+          class="font-bold text-[11px] rounded-lg cursor-pointer"
+          aria-label="Install App"
+          @click="handleInstallApp"
+        >
+          Install App
+        </UButton>
         <UButton
           :icon="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"
           color="neutral"
@@ -461,6 +480,30 @@ const handleLogout = async () => {
         </div>
       </div>
 
+      <!-- PWA Install Action in Sidebar -->
+      <div v-if="!isInstalled" class="px-4 py-2 border-t border-neutral-100 dark:border-neutral-800/60">
+        <button
+          type="button"
+          class="w-full p-3 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/25 hover:border-primary/50 text-left transition-all group cursor-pointer"
+          @click="handleInstallApp"
+        >
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+              <UIcon name="i-lucide-download" class="w-4 h-4" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-xs font-bold text-neutral-900 dark:text-white leading-tight flex items-center gap-1.5">
+                <span>Install Aplikasi</span>
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              </div>
+              <div class="text-[10px] text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
+                Nonton nyaman di HP & PC
+              </div>
+            </div>
+          </div>
+        </button>
+      </div>
+
       <!-- Sidebar Bottom Navigation (Profile / Auth Section) -->
       <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/80 bg-neutral-50/70 dark:bg-neutral-900/70">
         <!-- Logged In: User Profile Card -->
@@ -542,6 +585,18 @@ const handleLogout = async () => {
 
         <div class="flex items-center gap-3">
           <UButton
+            v-if="!isInstalled"
+            icon="i-lucide-download"
+            color="primary"
+            variant="subtle"
+            size="sm"
+            class="font-semibold text-xs rounded-xl cursor-pointer"
+            aria-label="Install App"
+            @click="handleInstallApp"
+          >
+            Install App
+          </UButton>
+          <UButton
             :icon="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"
             color="neutral"
             variant="ghost"
@@ -574,6 +629,15 @@ const handleLogout = async () => {
               <NuxtLink to="/profile" class="hover:text-primary transition-colors">Profil</NuxtLink>
               <NuxtLink to="/privacy" class="hover:text-primary transition-colors">Kebijakan Privasi</NuxtLink>
               <NuxtLink to="/terms" class="hover:text-primary transition-colors">Ketentuan Layanan</NuxtLink>
+              <button
+                v-if="!isInstalled"
+                type="button"
+                class="hover:text-primary transition-colors cursor-pointer flex items-center gap-1 font-semibold text-primary"
+                @click="handleInstallApp"
+              >
+                <UIcon name="i-lucide-download" class="w-3.5 h-3.5" />
+                <span>Install App</span>
+              </button>
             </div>
           </div>
           <p class="text-[11px] text-neutral-400 dark:text-neutral-500 text-center sm:text-left leading-relaxed">

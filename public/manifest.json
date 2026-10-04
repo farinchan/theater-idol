@@ -1,0 +1,60 @@
+{
+  "name": "Theater Idol",
+  "short_name": "Theater Idol",
+  "description": "Platform Nonton Live Streaming & Video Replay Pertunjukan Theater Idol kualitas Full HD.",
+  "theme_color": "#e11d48",
+  "background_color": "#0a0a0a",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "start_url": "/",
+  "scope": "/",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "/pwa-64x64.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    },
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Live Streaming",
+      "short_name": "Live",
+      "description": "Nonton Siaran Langsung Theater Idol",
+      "url": "/stream",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Jadwal Show",
+      "short_name": "Jadwal",
+      "description": "Cek Jadwal Show Theater Idol",
+      "url": "/jadwal",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Replay Show",
+      "short_name": "Replay",
+      "description": "Koleksi Replay Theater Idol",
+      "url": "/replay",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    }
+  ]
+}

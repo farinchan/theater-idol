@@ -38,6 +38,7 @@ export default defineNuxtConfig({
         { name: 'twitter:image', content: '/icon.png' }
       ],
       link: [
+        { rel: 'manifest', href: '/manifest.webmanifest' },
         { rel: 'canonical', href: 'https://theater-idol.web.id' },
         { rel: 'icon', type: 'image/png', href: '/icon.png' },
         { rel: 'shortcut icon', type: 'image/png', href: '/icon.png' },
@@ -117,7 +118,8 @@ export default defineNuxtConfig({
       installPrompt: true
     },
     devOptions: {
-      enabled: false
+      enabled: true,
+      type: 'module'
     }
   },
   runtimeConfig: {
