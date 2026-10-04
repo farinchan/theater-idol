@@ -158,8 +158,8 @@ const initPlayer = async () => {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              // Jika terjadi network/CORS error pada URL langsung, coba otomatis alihkan ke proxy server internal
-              if (!url.includes('/api/stream/proxy') && activeSrc.value && !activeSrc.value.includes('/api/stream/proxy')) {
+              // Jika terjadi network/CORS error pada URL langsung eksternal, alihkan ke proxy
+              if (!url.startsWith('/api/stream') && activeSrc.value && !activeSrc.value.startsWith('/api/stream')) {
                 console.warn('[HlsPlayer] Terjadi Network/CORS error. Beralih otomatis ke server proxy...')
                 activeSrc.value = `/api/stream/proxy?url=${encodeURIComponent(activeSrc.value)}`
                 initPlayer()
@@ -342,11 +342,13 @@ const applyCustomUrl = () => {
 }
 
 const useProxyStream = () => {
-  if (activeSrc.value) {
+  if (activeSrc.value && !activeSrc.value.startsWith('/api/stream')) {
     activeSrc.value = `/api/stream/proxy?url=${encodeURIComponent(activeSrc.value)}`
-    isUsingDemo.value = false
-    initPlayer()
+  } else {
+    activeSrc.value = '/api/stream/live.m3u8'
   }
+  isUsingDemo.value = false
+  initPlayer()
 }
 
 // Activity & Inactivity timers for controls auto-hide
@@ -506,7 +508,7 @@ onBeforeUnmount(() => {
             <span>Coba Lagi</span>
           </button>
           <button
-            v-if="!effectiveSrc.includes('/api/stream/proxy')"
+            v-if="!effectiveSrc.startsWith('/api/stream')"
             class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-600/30"
             @click.stop="useProxyStream"
           >

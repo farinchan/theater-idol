@@ -149,8 +149,8 @@ export default defineNuxtConfig({
     streamProxyOrigin: process.env.STREAM_PROXY_ORIGIN || '',
     public: {
       appName: process.env.APP_NAME || 'Theater Idol',
-      siteUrl: process.env.SITE_URL || 'https://theater-idol.web.id',
-      streamUrl: process.env.STREAM_URL || process.env.NUXT_PUBLIC_STREAM_URL || '',
+      isStreamConfigured: !!(process.env.STREAM_URL),
+      streamEndpoint: '/api/stream/live.m3u8',
       streamUseProxy: process.env.STREAM_USE_PROXY !== 'false',
       appwriteEndpoint: process.env.APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1',
       appwriteProjectId: process.env.APPWRITE_PROJECT_ID || '',

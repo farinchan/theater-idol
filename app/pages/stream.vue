@@ -6,7 +6,13 @@ import { useAppwriteAuth } from '~/composables/useAppwriteAuth'
 import { useStreamViewers } from '~/composables/useStreamViewers'
 
 const config = useRuntimeConfig()
-const streamUrl = computed(() => (config.public.streamUrl as string) || '')
+// Virtual endpoint agar STREAM_URL upstream 100% tersembunyi dari DevTools Network
+const streamUrl = computed(() => {
+  if (config.public.isStreamConfigured) {
+    return (config.public.streamEndpoint as string) || '/api/stream/live.m3u8'
+  }
+  return ''
+})
 const { isStreamEnabled, isStreamRequireLogin, isStreamRequirePremium, streamNotice } = useSiteSettings()
 
 // In-Memory Realtime Stream Viewers Tracker (Tanpa Database)
