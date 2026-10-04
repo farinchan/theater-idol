@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { account } from '~/appwrite'
+
+const route = useRoute()
 const router = useRouter()
 const { appName } = useAppName()
-const { user, login, register, isLoading, authError } = useAppwriteAuth()
+const { user, login, register, loginWithGoogle, syncGoogleProfilePicture, checkSession, isLoading, authError } = useAppwriteAuth()
 
 useSeoMeta({
   title: 'Masuk / Daftar Akun - Theater Idol',
@@ -19,13 +22,72 @@ const form = reactive({
 
 const localError = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
+const isOAuthProcessing = ref(false)
 
-// If already logged in, redirect to profile
-watchEffect(() => {
-  if (user.value) {
-    // Optionally redirect if desired
+// Handle Google OAuth callback saat dialihkan kembali dari Appwrite
+onMounted(async () => {
+  const oauthStatus = route.query.oauth as string | undefined
+  const userId = route.query.userId as string | undefined
+  const secret = route.query.secret as string | undefined
+
+  if (oauthStatus === 'success' || (userId && secret)) {
+    isOAuthProcessing.value = true
+    localError.value = null
+    successMessage.value = 'Memverifikasi autentikasi Google...'
+
+    try {
+      // Jika Appwrite mengembalikan token via query parameter
+      if (userId && secret) {
+        try {
+          await account.createSession(userId, secret)
+        } catch (e: any) {
+          console.warn('[Google OAuth] createSession token note:', e?.message)
+        }
+      }
+
+      // Ambil dan pastikan data sesi aktif tersimpan
+      const currentUser = await checkSession()
+      if (currentUser) {
+        // Otomatis sinkronisasi foto profil Google jika belum ada avatar kustom
+        await syncGoogleProfilePicture()
+
+        successMessage.value = `Selamat datang, ${currentUser.name || 'Pengguna'}! Berhasil masuk dengan Google.`
+
+        let target = '/profile'
+        try {
+          const saved = sessionStorage.getItem('oauth_redirect')
+          if (saved) {
+            target = saved
+            sessionStorage.removeItem('oauth_redirect')
+          } else if (route.query.redirect) {
+            target = String(route.query.redirect)
+          }
+        } catch {}
+
+        setTimeout(() => {
+          router.replace(target)
+        }, 800)
+      } else {
+        localError.value = 'Sesi akun Google tidak ditemukan. Silakan coba masuk kembali.'
+      }
+    } catch (err: any) {
+      localError.value = err?.message || 'Gagal memproses otorisasi akun Google.'
+    } finally {
+      isOAuthProcessing.value = false
+    }
+  } else if (oauthStatus === 'failed') {
+    localError.value = 'Login dengan Google dibatalkan atau tidak berhasil. Silakan coba kembali.'
+    router.replace({ query: {} })
   }
 })
+
+// Trigger Google OAuth Login
+const handleGoogleLogin = async () => {
+  localError.value = null
+  successMessage.value = null
+  const redirectTarget = (route.query.redirect as string) || '/profile'
+  await loginWithGoogle(redirectTarget)
+}
 
 const handleSubmit = async () => {
   localError.value = null
@@ -123,6 +185,33 @@ const handleSubmit = async () => {
           </button>
         </div>
 
+        <!-- Google OAuth Button -->
+        <button
+          type="button"
+          :disabled="isLoading || isOAuthProcessing"
+          class="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-2xl border border-neutral-200 dark:border-neutral-700/80 bg-white dark:bg-neutral-800/90 hover:bg-neutral-50 dark:hover:bg-neutral-750 text-neutral-800 dark:text-neutral-100 font-bold text-sm shadow-xs transition-all transform active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer group"
+          @click="handleGoogleLogin"
+        >
+          <!-- Google G Logo SVG -->
+          <svg class="w-5 h-5 flex-shrink-0 group-hover:scale-105 transition-transform" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z" />
+            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24Z" />
+            <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15Z" />
+            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z" />
+          </svg>
+          <span v-if="isOAuthProcessing">Memproses Otorisasi Google...</span>
+          <span v-else>{{ mode === 'login' ? 'Masuk dengan Google' : 'Daftar dengan Google' }}</span>
+        </button>
+
+        <!-- Divider -->
+        <div class="flex items-center gap-3 my-1">
+          <div class="flex-1 border-t border-neutral-200 dark:border-neutral-800" />
+          <span class="text-[11px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider whitespace-nowrap">
+            atau gunakan email
+          </span>
+          <div class="flex-1 border-t border-neutral-200 dark:border-neutral-800" />
+        </div>
+
         <!-- Feedback Alert Messages -->
         <div
           v-if="localError || authError"
@@ -207,8 +296,9 @@ const handleSubmit = async () => {
             color="primary"
             variant="solid"
             size="lg"
-            class="w-full justify-center rounded-2xl font-bold mt-2 shadow-md shadow-primary/25"
-            :loading="isLoading"
+            class="w-full justify-center rounded-2xl font-bold mt-2 shadow-md shadow-primary/25 cursor-pointer"
+            :loading="isLoading && !isOAuthProcessing"
+            :disabled="isOAuthProcessing"
           >
             {{ mode === 'login' ? 'Masuk Sekarang' : 'Daftar & Buat Akun' }}
           </UButton>

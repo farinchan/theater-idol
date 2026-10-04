@@ -1,5 +1,5 @@
 import type { Models } from 'appwrite'
-import { account, ID } from '~/appwrite'
+import { account, avatars, ID, OAuthProvider } from '~/appwrite'
 
 export interface UserPreferences {
   avatar?: string
@@ -177,6 +177,103 @@ export const useAppwriteAuth = () => {
     } finally {
       isLoading.value = false
     }
+  }
+
+  // Login / Register using Google OAuth via Appwrite
+  const loginWithGoogle = async (redirectPath: string = '/profile') => {
+    if (!import.meta.client) return { success: false, error: 'Hanya dapat dijalankan di browser.' }
+
+    isLoading.value = true
+    authError.value = null
+
+    try {
+      if (redirectPath) {
+        try {
+          sessionStorage.setItem('oauth_redirect', redirectPath)
+        } catch {}
+      }
+
+      const origin = window.location.origin
+      const successUrl = `${origin}/login?oauth=success`
+      const failureUrl = `${origin}/login?oauth=failed`
+
+      // Memulai sesi OAuth Google via Appwrite Client SDK dengan scope profil & email
+      account.createOAuth2Session(
+        OAuthProvider.Google,
+        successUrl,
+        failureUrl,
+        ['profile', 'email']
+      )
+      return { success: true }
+    } catch (err: any) {
+      const message = err?.message || 'Gagal memulai otorisasi login dengan Google.'
+      authError.value = message
+      isLoading.value = false
+      return { success: false, error: message }
+    }
+  }
+
+  // Sinkronisasi foto profil Google ke preferensi akun user (prefs.avatar)
+  const syncGoogleProfilePicture = async (force: boolean = false): Promise<string | null> => {
+    if (!import.meta.client) return null
+
+    try {
+      const currentUser = await account.get<UserPreferences>()
+      // Jika user sudah memiliki avatar kustom dan tidak dipaksa (force), pertahankan foto yang ada
+      if (!force && currentUser.prefs?.avatar && currentUser.prefs.avatar.trim() !== '') {
+        return currentUser.prefs.avatar
+      }
+
+      let googlePictureUrl = ''
+
+      // 1. Coba ambil providerAccessToken dari Appwrite account identities
+      try {
+        const { identities } = await account.listIdentities()
+        const googleIdentity = identities.find(
+          (id: any) => id.provider?.toLowerCase() === 'google' && id.providerAccessToken
+        )
+
+        if (googleIdentity?.providerAccessToken) {
+          const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: {
+              Authorization: `Bearer ${googleIdentity.providerAccessToken}`
+            }
+          })
+          if (res.ok) {
+            const data = await res.json()
+            if (data?.picture) {
+              googlePictureUrl = data.picture
+            }
+          }
+        }
+      } catch (identitiesErr) {
+        console.warn('[Google OAuth] listIdentities note:', identitiesErr)
+      }
+
+      // 2. Fallback jika access token tidak tersedia: gunakan Appwrite Avatars Photo API
+      if (!googlePictureUrl) {
+        try {
+          const photoUrl = avatars.getPhoto({ width: 256, height: 256 })
+          if (photoUrl) {
+            googlePictureUrl = photoUrl
+          }
+        } catch {}
+      }
+
+      // 3. Simpan ke preferensi user jika URL foto Google berhasil didapatkan
+      if (googlePictureUrl) {
+        const currentPrefs = { ...(currentUser.prefs || {}) }
+        currentPrefs.avatar = googlePictureUrl
+        await account.updatePrefs({ prefs: currentPrefs })
+        const updatedUser = await account.get<UserPreferences>()
+        user.value = updatedUser
+        return googlePictureUrl
+      }
+    } catch (err) {
+      console.warn('[Google OAuth] syncGoogleProfilePicture note:', err)
+    }
+
+    return null
   }
 
   // Logout current session
@@ -398,6 +495,8 @@ export const useAppwriteAuth = () => {
     checkSession,
     login,
     register,
+    loginWithGoogle,
+    syncGoogleProfilePicture,
     logout,
     getSessions,
     revokeSession,
