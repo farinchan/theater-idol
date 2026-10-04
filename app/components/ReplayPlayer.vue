@@ -31,6 +31,9 @@ const isMenuOpen = ref(false)
 const errorMessage = ref('')
 const playerKey = ref(0)
 
+// Status resolusi YouTube yang aktif terdeteksi
+const activeYtQuality = ref('default')
+
 // Helper Deteksi YouTube ID dari berbagai format URL
 const getYouTubeVideoId = (url?: string): string | null => {
   if (!url) return null
@@ -43,6 +46,26 @@ const getYouTubeVideoId = (url?: string): string | null => {
 
 const youtubeId = computed(() => getYouTubeVideoId(props.src))
 const isYouTube = computed(() => Boolean(youtubeId.value))
+
+// Format resolusi YouTube yang ramah pengguna
+const formatYtQuality = (q?: string): string => {
+  if (!q) return 'Otomatis'
+  const key = q.toLowerCase()
+  const map: Record<string, string> = {
+    hd2160: '4K Ultra HD',
+    highres: '4K Ultra HD',
+    hd1440: '1440p (2K)',
+    hd1080: '1080p HD',
+    hd720: '720p HD',
+    large: '480p',
+    medium: '360p',
+    small: '240p',
+    tiny: '144p',
+    auto: 'Otomatis',
+    default: 'Otomatis'
+  }
+  return map[key] || q
+}
 
 // Helper Cek apakah URL adalah HLS stream (.m3u8)
 const isHlsUrl = (url?: string): boolean => {
@@ -198,7 +221,101 @@ const setupQualityMenu = (player: any) => {
     })
   }
 
-  // Baca kualitas yang sebelumnya tersimpan (default 720p)
+  const valueSpan = qualityBtn.querySelector('.plyr__menu__value')
+
+  // =========================================================================
+  // KASUS 1: VIDEO YOUTUBE (Resolusi Otomatis Adaptive HD 100% di Pemutar Teater)
+  // =========================================================================
+  if (isYouTube.value) {
+    const qName = formatYtQuality(activeYtQuality.value)
+    if (valueSpan) {
+      valueSpan.textContent = qName === 'Otomatis' ? 'Otomatis (HD)' : `${qName} (Auto)`
+    }
+
+    menuList.innerHTML = ''
+
+    // 1. Kartu Status Resolusi Streaming Aktif
+    const statusBox = document.createElement('div')
+    statusBox.className = 'plyr-yt-quality-card'
+    statusBox.style.cssText = 'padding: 12px 14px; margin: 4px 6px 8px 6px; border-radius: 10px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12);'
+
+    const statusRow = document.createElement('div')
+    statusRow.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;'
+
+    const statusTitle = document.createElement('span')
+    statusTitle.style.cssText = 'font-size: 11px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 0.5px;'
+    statusTitle.textContent = 'Resolusi Replay'
+
+    const statusBadge = document.createElement('span')
+    statusBadge.className = 'plyr__badge'
+    statusBadge.style.cssText = 'background: #D61515; color: #fff; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 10px;'
+    statusBadge.textContent = qName === 'Otomatis' ? 'Adaptive HD' : qName
+
+    statusRow.appendChild(statusTitle)
+    statusRow.appendChild(statusBadge)
+    statusBox.appendChild(statusRow)
+
+    const statusDesc = document.createElement('p')
+    statusDesc.style.cssText = 'font-size: 11px; color: rgba(255, 255, 255, 0.7); margin: 0; line-height: 1.4;'
+    statusDesc.textContent = 'Kualitas tayangan dikelola secara otomatis (Adaptive Bitrate) hingga 1080p HD mengikuti kecepatan koneksi internet Anda.'
+    statusBox.appendChild(statusDesc)
+
+    menuList.appendChild(statusBox)
+
+    // 2. Opsi Aktif: Kualitas Otomatis (Checked)
+    const autoOptBtn = document.createElement('button')
+    autoOptBtn.type = 'button'
+    autoOptBtn.className = 'plyr__control'
+    autoOptBtn.setAttribute('role', 'menuitemradio')
+    autoOptBtn.setAttribute('aria-checked', 'true')
+    autoOptBtn.style.cssText = 'display: flex; align-items: center; justify-content: space-between; width: 100%;'
+
+    const autoSpan = document.createElement('span')
+    autoSpan.textContent = 'Otomatis (Kualitas Terbaik)'
+
+    const autoBadge = document.createElement('span')
+    autoBadge.className = 'plyr__badge'
+    autoBadge.textContent = 'Aktif'
+
+    autoOptBtn.appendChild(autoSpan)
+    autoOptBtn.appendChild(autoBadge)
+
+    autoOptBtn.addEventListener('click', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (player.elements?.settings?.panels?.home) {
+        qualityPane.hidden = true
+        player.elements.settings.panels.home.hidden = false
+      }
+    })
+
+    menuList.appendChild(autoOptBtn)
+
+    // 3. Tombol Layar Penuh (Memaksimalkan Resolusi 1080p pada Layar Penuh)
+    const fsBtn = document.createElement('button')
+    fsBtn.type = 'button'
+    fsBtn.className = 'plyr__control'
+    fsBtn.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; font-size: 11px; cursor: pointer; border-top: 1px solid rgba(255, 255, 255, 0.08);'
+    fsBtn.innerHTML = '<span>⛶ Layar Penuh (Resolusi 1080p Maksimal)</span>'
+    fsBtn.addEventListener('click', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (player.elements?.settings?.panels?.home) {
+        qualityPane.hidden = true
+        player.elements.settings.panels.home.hidden = false
+      }
+      try {
+        player.fullscreen.enter()
+      } catch {}
+    })
+    menuList.appendChild(fsBtn)
+
+    return
+  }
+
+  // =========================================================================
+  // KASUS 2: VIDEO HLS ATAU MP4 (Mendukung pemilihan resolusi manual via level)
+  // =========================================================================
   let currentVal: number | string = 720
   try {
     const saved = localStorage.getItem('theater_replay_quality')
@@ -207,7 +324,6 @@ const setupQualityMenu = (player: any) => {
     }
   } catch {}
 
-  const valueSpan = qualityBtn.querySelector('.plyr__menu__value')
   const updateValueLabel = (val: number | string) => {
     if (valueSpan) {
       valueSpan.textContent = val === 'auto' || val === 0 ? 'Otomatis' : `${val}p`
@@ -401,10 +517,36 @@ const initPlayer = async () => {
         }
       })
 
+      const setupYtListeners = () => {
+        try {
+          const embed = plyrInstance?.embed
+          if (embed) {
+            if (typeof embed.getPlaybackQuality === 'function') {
+              const q = embed.getPlaybackQuality()
+              if (q && q !== 'unknown') {
+                activeYtQuality.value = q
+                setupQualityMenu(plyrInstance)
+              }
+            }
+            if (typeof embed.addEventListener === 'function') {
+              embed.addEventListener('onPlaybackQualityChange', (event: any) => {
+                if (event?.data) {
+                  activeYtQuality.value = event.data
+                  setupQualityMenu(plyrInstance)
+                }
+              })
+            }
+          }
+        } catch (e) {
+          console.warn('[ReplayPlayer] Error listening to YT quality:', e)
+        }
+      }
+
       plyrInstance.on('ready', () => {
         isLoading.value = false
         disableSubtitles()
         setupQualityMenu(plyrInstance)
+        setupYtListeners()
 
         const iframe = containerRef.value?.querySelector('iframe')
         if (iframe) {
@@ -422,11 +564,13 @@ const initPlayer = async () => {
         hasStarted.value = true
         disableSubtitles()
         setupQualityMenu(plyrInstance)
+        setupYtListeners()
 
         if (captionCheckTimer) clearTimeout(captionCheckTimer)
         captionCheckTimer = setTimeout(() => {
           disableSubtitles()
-        }, 1000)
+          setupYtListeners()
+        }, 1200)
       })
 
       plyrInstance.on('playing', () => {
@@ -436,6 +580,7 @@ const initPlayer = async () => {
         hasStarted.value = true
         disableSubtitles()
         setupQualityMenu(plyrInstance)
+        setupYtListeners()
       })
 
       plyrInstance.on('pause', () => {
@@ -729,6 +874,7 @@ onBeforeUnmount(() => {
   position: absolute !important;
   pointer-events: none !important;
 }
+
 
 /* Native HTML5 video (MP4 / WebM / HLS) tampil proporsional tanpa crop */
 .theater-replay-container video {
