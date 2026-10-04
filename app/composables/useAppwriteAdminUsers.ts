@@ -1,4 +1,20 @@
+import { account } from '~/appwrite'
 import { parsePremiumExpiry, type ParsedPremium } from '~/composables/useAppwriteAuth'
+
+// Helper untuk menyertakan JWT autentikasi Appwrite ke endpoint server
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const headers: Record<string, string> = {}
+  if (!import.meta.client) return headers
+  try {
+    const res = await account.createJWT()
+    if (res?.jwt) {
+      headers['X-Appwrite-JWT'] = res.jwt
+    }
+  } catch (err) {
+    // Session mungkin expired atau belum login
+  }
+  return headers
+}
 
 export interface AdminUserItem {
   $id: string
@@ -103,8 +119,10 @@ export const useAppwriteAdminUsers = () => {
       if (params.limit) q.set('limit', String(params.limit))
       if (params.offset) q.set('offset', String(params.offset))
 
+      const headers = await getAuthHeaders()
       const res = await $fetch<{ success: boolean; total: number; users: any[] }>(
-        `/api/admin/users?${q.toString()}`
+        `/api/admin/users?${q.toString()}`,
+        { headers }
       )
 
       if (res?.success && Array.isArray(res.users)) {
@@ -136,8 +154,10 @@ export const useAppwriteAdminUsers = () => {
     notice.value = null
 
     try {
+      const headers = await getAuthHeaders()
       const res = await $fetch<{ success: boolean; user: any }>('/api/admin/users', {
         method: 'POST',
+        headers,
         body: payload
       })
 
@@ -181,8 +201,10 @@ export const useAppwriteAdminUsers = () => {
     notice.value = null
 
     try {
+      const headers = await getAuthHeaders()
       const res = await $fetch<{ success: boolean; user: any }>(`/api/admin/users/${userId}`, {
         method: 'PATCH',
+        headers,
         body: payload
       })
 
@@ -222,8 +244,10 @@ export const useAppwriteAdminUsers = () => {
     notice.value = null
 
     try {
+      const headers = await getAuthHeaders()
       const res = await $fetch<{ success: boolean }>(`/api/admin/users/${userId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers
       })
 
       if (res?.success) {

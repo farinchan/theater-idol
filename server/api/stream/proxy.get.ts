@@ -1,3 +1,52 @@
+function isAllowedStreamHost(hostname: string, config: any): boolean {
+  const host = hostname.toLowerCase()
+
+  // 1. Blokir loopback, cloud metadata (169.254.x.x), dan rentang IP privat
+  if (
+    host === 'localhost' ||
+    host === '0.0.0.0' ||
+    host === '::1' ||
+    host.startsWith('127.') ||
+    host.startsWith('169.254.') ||
+    host.startsWith('10.') ||
+    host.startsWith('192.168.') ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  ) {
+    return false
+  }
+
+  // 2. Izinkan hostname yang dikonfigurasi pada STREAM_URL
+  if (config.streamUrl) {
+    try {
+      const configuredHost = new URL(config.streamUrl).hostname.toLowerCase()
+      if (host === configuredHost || host.endsWith('.' + configuredHost)) return true
+    } catch {}
+  }
+
+  // 3. Izinkan hostname yang dikonfigurasi pada STREAM_PROXY_ORIGIN
+  if (config.streamProxyOrigin) {
+    try {
+      const originHost = new URL(config.streamProxyOrigin).hostname.toLowerCase()
+      if (host === originHost || host.endsWith('.' + originHost)) return true
+    } catch {}
+  }
+
+  // 4. Daftar putih domain penyedia streaming teater & video resmi/tepercaya
+  const allowedPatterns = [
+    /\.workers\.dev$/,
+    /(^|\.)hanabira48\.com$/,
+    /(^|\.)mux\.dev$/,
+    /(^|\.)akamaized\.net$/,
+    /(^|\.)fastly\.net$/,
+    /(^|\.)cloudfront\.net$/,
+    /(^|\.)cloudinary\.com$/,
+    /(^|\.)appwrite\.io$/,
+    /(^|\.)googlevideo\.com$/
+  ]
+
+  return allowedPatterns.some(pattern => pattern.test(host))
+}
+
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const config = useRuntimeConfig()
@@ -11,6 +60,7 @@ export default defineEventHandler(async (event) => {
   }
 
   let targetUrl = rawUrl
+  let parsedUrl: URL
   try {
     if (rawUrl.startsWith('http%3A') || rawUrl.startsWith('https%3A') || rawUrl.includes('%2F')) {
       try {
@@ -23,10 +73,19 @@ export default defineEventHandler(async (event) => {
     if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
       throw new Error('Invalid protocol')
     }
+    parsedUrl = new URL(targetUrl)
   } catch {
     throw createError({
       statusCode: 400,
       statusMessage: 'URL tidak valid'
+    })
+  }
+
+  // Validasi SSRF (Server-Side Request Forgery Prevention)
+  if (!isAllowedStreamHost(parsedUrl.hostname, config)) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Domain upstream tidak diizinkan demi keamanan (SSRF Protection)'
     })
   }
 

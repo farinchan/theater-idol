@@ -1,6 +1,10 @@
 import { writeSiteSettings, SiteSettings } from '../utils/settingsStorage'
+import { requireAdminUser } from '../utils/authGuard'
 
 export default defineEventHandler(async (event) => {
+  // Wajibkan hak akses admin untuk mengubah konfigurasi website
+  await requireAdminUser(event)
+
   const body = await readBody<Partial<SiteSettings>>(event)
 
   if (!body) {

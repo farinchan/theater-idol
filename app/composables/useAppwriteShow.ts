@@ -135,7 +135,7 @@ export const useAppwriteShow = () => {
         replay_url: cleanReplayUrl || null
       }
 
-      const permissions = ['read("any")', 'update("any")', 'delete("any")']
+      const permissions = ['read("any")']
 
       try {
         const rowRes = await tablesDB.createRow(

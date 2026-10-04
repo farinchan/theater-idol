@@ -1,6 +1,10 @@
 import { updateAppwriteUser, getAppwriteUser } from '~~/server/utils/appwriteServer'
+import { requireAdminUser } from '~~/server/utils/authGuard'
 
 export default defineEventHandler(async (event) => {
+  // Wajibkan hak akses admin
+  await requireAdminUser(event)
+
   const userId = getRouterParam(event, 'id')
   if (!userId) {
     throw createError({

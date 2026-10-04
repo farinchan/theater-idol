@@ -1,6 +1,10 @@
 import { listAppwriteUsers } from '~~/server/utils/appwriteServer'
+import { requireAdminUser } from '~~/server/utils/authGuard'
 
 export default defineEventHandler(async (event) => {
+  // Wajibkan hak akses admin
+  await requireAdminUser(event)
+
   const query = getQuery(event)
   const search = typeof query.search === 'string' ? query.search : undefined
   const limit = query.limit ? Number(query.limit) : 100

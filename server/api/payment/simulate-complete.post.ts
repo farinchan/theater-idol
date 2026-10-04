@@ -1,7 +1,19 @@
 import { getOrderByOrderId, updateOrderStatus } from '~~/server/utils/ordersStorage'
 import { updateUserPremiumInAppwrite } from '~~/server/utils/appwriteServer'
+import { requireAdminUser } from '~~/server/utils/authGuard'
 
 export default defineEventHandler(async (event) => {
+  // 1. Blokir sepenuhnya pada lingkungan produksi
+  if (process.env.NODE_ENV === 'production') {
+    throw createError({
+      statusCode: 404,
+      statusMessage: 'Endpoint tidak tersedia di lingkungan produksi'
+    })
+  }
+
+  // 2. Wajibkan autentikasi administrator bahkan di lingkungan development
+  await requireAdminUser(event)
+
   const body = await readBody(event)
   const orderId = body?.order_id
 

@@ -1,3 +1,18 @@
+import { account } from '~/appwrite'
+
+// Helper untuk menyertakan JWT autentikasi Appwrite ke endpoint server
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const headers: Record<string, string> = {}
+  if (!import.meta.client) return headers
+  try {
+    const res = await account.createJWT()
+    if (res?.jwt) {
+      headers['X-Appwrite-JWT'] = res.jwt
+    }
+  } catch {}
+  return headers
+}
+
 export interface SiteSettings {
   appName: string
   isStreamEnabled: boolean
@@ -65,8 +80,10 @@ export const useSiteSettings = () => {
     error.value = null
     successNotice.value = null
     try {
+      const headers = await getAuthHeaders()
       const res = await $fetch<{ success: boolean; settings: SiteSettings }>('/api/settings', {
         method: 'POST',
+        headers,
         body: newSettings
       })
       if (res && res.settings) {

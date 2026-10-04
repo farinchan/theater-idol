@@ -1,4 +1,5 @@
 import { saveOrder, type OrderRecord } from '~~/server/utils/ordersStorage'
+import { requireAuthUser } from '~~/server/utils/authGuard'
 
 export const PREMIUM_PLANS: Record<string, { id: string; name: string; durationDays: number; price: number; label: string }> = {
   plan_7d: {
@@ -25,6 +26,9 @@ export const PREMIUM_PLANS: Record<string, { id: string; name: string; durationD
 }
 
 export default defineEventHandler(async (event) => {
+  // Wajibkan pengguna login terautentikasi
+  const authUser = await requireAuthUser(event)
+
   const body = await readBody(event)
   const config = useRuntimeConfig()
 
@@ -38,9 +42,10 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const userId = body?.user_id || ''
-  const userEmail = body?.user_email || ''
-  const userName = body?.user_name || ''
+  // Gunakan data identitas terverifikasi dari Appwrite Auth
+  const userId = authUser.$id
+  const userEmail = authUser.email
+  const userName = authUser.name || (body?.user_name ? String(body.user_name).slice(0, 50).trim() : 'Member')
 
   // Generate unique order ID
   const timestamp = Date.now()
@@ -53,6 +58,13 @@ export default defineEventHandler(async (event) => {
 
   const apiKey = config.sumopodApiKey
   const endpoint = config.sumopodPayEndpoint || 'https://api-pay-sandbox.sumopod.com/api/v1/payments'
+
+  if (!apiKey) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Layanan pembayaran belum dikonfigurasi oleh administrator.'
+    })
+  }
 
   const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1')
 

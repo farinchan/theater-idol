@@ -1,5 +1,5 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { client, tablesDB, databases, ID, Query } from '~/appwrite'
+import { client, account, tablesDB, databases, ID, Query } from '~/appwrite'
 import { useAppwriteAuth } from '~/composables/useAppwriteAuth'
 
 export interface ChatMessage {
@@ -363,58 +363,42 @@ export const useAppwriteLiveChat = () => {
     messages.value.push(optimisticMsg)
     saveCachedMessages(messages.value)
 
-    // 2. Persist to Appwrite Database
+    // 2. Persist securely via server endpoint (/api/chat/send)
     try {
-      const payload = {
-        user_id: senderId,
-        user_name: senderName,
-        user_avatar: senderAvatar,
-        is_admin: senderIsAdmin,
-        message: trimmed,
-        show_id: showId || '',
-        time: currentTimeStr
-      }
-
-      // Document-level permissions: only read, update, delete, write are allowed
-      const permissions = ['read("any")']
-      const newDocId = ID.unique()
-
+      const headers: Record<string, string> = {}
       try {
-        const rowRes = await tablesDB.createRow(
-          dbId.value,
-          tableId.value,
-          newDocId,
-          payload,
-          permissions
-        )
-        optimisticMsg.$id = rowRes.$id
-        optimisticMsg.id = rowRes.$id
-        optimisticMsg.isOptimistic = false
-      } catch (tablesErr: any) {
-        console.warn('tablesDB.createRow error, attempting databases.createDocument:', tablesErr)
-        try {
-          const docRes = await databases.createDocument(
-            dbId.value,
-            tableId.value,
-            newDocId,
-            payload,
-            permissions
-          )
-          optimisticMsg.$id = docRes.$id
-          optimisticMsg.id = docRes.$id
-          optimisticMsg.isOptimistic = false
-        } catch (dbErr: any) {
-          console.error('All Appwrite live chat save attempts failed:', dbErr)
-          optimisticMsg.isOptimistic = false
+        const jwtRes = await account.createJWT()
+        if (jwtRes?.jwt) {
+          headers['X-Appwrite-JWT'] = jwtRes.jwt
         }
+      } catch {}
+
+      const res = await $fetch<{ success: boolean; message: any }>('/api/chat/send', {
+        method: 'POST',
+        headers,
+        body: {
+          message: trimmed,
+          show_id: showId || ''
+        }
+      })
+
+      if (res?.success && res.message) {
+        optimisticMsg.$id = res.message.$id
+        optimisticMsg.id = res.message.$id
+        optimisticMsg.is_admin = !!res.message.is_admin
+        optimisticMsg.isOptimistic = false
       }
 
       saveCachedMessages(messages.value)
       return { success: true, message: optimisticMsg }
     } catch (err: any) {
-      console.warn('Send message remote fallback:', err?.message)
-      optimisticMsg.isOptimistic = false
-      return { success: true, message: optimisticMsg, fallback: true }
+      console.warn('Chat send error via server API:', err?.message)
+      const errorMsg = err?.data?.statusMessage || err?.message || 'Gagal mengirim pesan'
+      chatError.value = errorMsg
+      // Hapus pesan optimistik jika ditolak oleh server (misal karena rate-limit)
+      messages.value = messages.value.filter(m => m.id !== optimisticId)
+      saveCachedMessages(messages.value)
+      return { success: false, error: errorMsg }
     } finally {
       isSending.value = false
     }

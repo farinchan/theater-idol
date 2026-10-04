@@ -51,9 +51,13 @@ export default defineEventHandler(async (event) => {
     isAuthorized = verifySignature(webhookSecret, svixId, svixTimestamp, svixSignature, rawBody)
   }
 
-  // Jika di lingkungan dev/sandbox dan token tidak dikirim, beri toleransi jika test
-  if (!isAuthorized && !expectedToken && !webhookSecret) {
-    isAuthorized = true
+  // 3. Terapkan prinsip Fail-Closed: Tolak jika secret dan token belum dikonfigurasi
+  if (!expectedToken && !webhookSecret) {
+    console.error('[Webhook] KRITIKAL: SUMOPOD_WEBHOOK_TOKEN dan SUMOPOD_WEBHOOK_SECRET belum dikonfigurasi di server.')
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Konfigurasi webhook server belum lengkap'
+    })
   }
 
   if (!isAuthorized) {

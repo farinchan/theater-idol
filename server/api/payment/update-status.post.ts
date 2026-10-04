@@ -1,7 +1,11 @@
 import { getOrderByOrderId, updateOrderStatus, type OrderRecord } from '~~/server/utils/ordersStorage'
 import { updateUserPremiumInAppwrite } from '~~/server/utils/appwriteServer'
+import { requireAdminUser } from '~~/server/utils/authGuard'
 
 export default defineEventHandler(async (event) => {
+  // Hanya administrator yang diizinkan mengubah status transaksi secara manual
+  await requireAdminUser(event)
+
   const body = await readBody(event)
   const orderId = body?.order_id as string
   const newStatus = body?.status as OrderRecord['status']

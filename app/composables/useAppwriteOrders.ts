@@ -1,3 +1,18 @@
+import { account } from '~/appwrite'
+
+// Helper untuk menyertakan JWT autentikasi Appwrite ke endpoint server
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const headers: Record<string, string> = {}
+  if (!import.meta.client) return headers
+  try {
+    const res = await account.createJWT()
+    if (res?.jwt) {
+      headers['X-Appwrite-JWT'] = res.jwt
+    }
+  } catch {}
+  return headers
+}
+
 export interface OrderItem {
   id: string
   paymentId?: string
@@ -28,7 +43,11 @@ export const useAppwriteOrders = () => {
     isLoading.value = true
     error.value = null
     try {
-      const res = await $fetch<{ success: boolean; orders: OrderItem[] }>(`/api/payment/orders?limit=${limit}`)
+      const headers = await getAuthHeaders()
+      const res = await $fetch<{ success: boolean; orders: OrderItem[] }>(
+        `/api/payment/orders?limit=${limit}`,
+        { headers }
+      )
       if (res?.success && Array.isArray(res.orders)) {
         orders.value = res.orders
       }
@@ -44,10 +63,12 @@ export const useAppwriteOrders = () => {
     error.value = null
     notice.value = null
     try {
+      const headers = await getAuthHeaders()
       const res = await $fetch<{ success: boolean; message: string; order: OrderItem; newExpiry?: string }>(
         '/api/payment/update-status',
         {
           method: 'POST',
+          headers,
           body: {
             order_id: orderId,
             status: newStatus

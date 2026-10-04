@@ -521,8 +521,24 @@ watch([isAuthLoading, isInitialized, user], () => {
       <span class="text-xs font-semibold text-neutral-500">Memverifikasi hak akses admin...</span>
     </div>
 
+    <!-- State Akses Ditolak -->
+    <div v-else-if="!user || !isAdmin" class="py-16 text-center max-w-md mx-auto space-y-4">
+      <div class="w-16 h-16 rounded-3xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+        <UIcon name="i-lucide-shield-alert" class="w-8 h-8" />
+      </div>
+      <div class="space-y-1">
+        <h2 class="text-lg font-bold text-neutral-900 dark:text-white">Akses Terbatas</h2>
+        <p class="text-sm text-neutral-500 dark:text-neutral-400">
+          Halaman ini khusus untuk administrator Theater Idol. Silakan kembali ke beranda.
+        </p>
+      </div>
+      <UButton to="/" color="neutral" variant="soft" class="rounded-xl">
+        Kembali ke Beranda
+      </UButton>
+    </div>
+
     <!-- Konten Khusus Admin -->
-    <div v-else-if="user && isAdmin" class="space-y-6">
+    <div v-else class="space-y-6">
       <!-- ============================================== -->
       <!-- TABBAR NAVIGASI: TAB 1 (SETLIST), TAB 2 (SHOW) -->
       <!-- ============================================== -->

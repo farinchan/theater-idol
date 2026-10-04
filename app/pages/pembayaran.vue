@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { account } from '~/appwrite'
 const route = useRoute()
 const { appName } = useAppName()
-const { user, isPremium, premiumUntil, checkSession, isLoading, isInitialized } = useAppwriteAuth()
+const { user, isAdmin, isPremium, premiumUntil, checkSession, isLoading, isInitialized } = useAppwriteAuth()
 
 useSeoMeta({
   title: 'Beli Membership Premium - Theater Idol',
@@ -214,7 +215,15 @@ const fetchOrders = async () => {
     if (user.value.$id) params.set('user_id', user.value.$id)
     if (user.value.email) params.set('user_email', user.value.email)
 
-    const res = await $fetch<any>(`/api/payment/orders?${params.toString()}`)
+    const headers: Record<string, string> = {}
+    try {
+      const jwtRes = await account.createJWT()
+      if (jwtRes?.jwt) {
+        headers['X-Appwrite-JWT'] = jwtRes.jwt
+      }
+    } catch {}
+
+    const res = await $fetch<any>(`/api/payment/orders?${params.toString()}`, { headers })
     if (res?.success && Array.isArray(res.orders)) {
       serverOrders.value = res.orders
     } else {
@@ -331,8 +340,17 @@ const handleCreatePayment = async () => {
       user_name: user.value.name || userDisplayName.value
     }
 
+    const headers: Record<string, string> = {}
+    try {
+      const jwtRes = await account.createJWT()
+      if (jwtRes?.jwt) {
+        headers['X-Appwrite-JWT'] = jwtRes.jwt
+      }
+    } catch {}
+
     const res = await $fetch<any>('/api/payment/create', {
       method: 'POST',
+      headers,
       body: payload
     })
 
@@ -403,8 +421,17 @@ const handleSimulateComplete = async () => {
   if (!currentOrder.value?.id) return
   isSimulating.value = true
   try {
+    const headers: Record<string, string> = {}
+    try {
+      const jwtRes = await account.createJWT()
+      if (jwtRes?.jwt) {
+        headers['X-Appwrite-JWT'] = jwtRes.jwt
+      }
+    } catch {}
+
     const res = await $fetch<any>('/api/payment/simulate-complete', {
       method: 'POST',
+      headers,
       body: { order_id: currentOrder.value.id }
     })
 
@@ -966,8 +993,8 @@ const formatRupiah = (val: number) => {
               </UButton>
             </div>
 
-            <!-- Tombol Bantuan Simulator Pembayaran Sandbox -->
-            <div class="pt-3 border-t border-neutral-100 dark:border-neutral-800">
+            <!-- Tombol Bantuan Simulator Pembayaran Sandbox (Khusus Admin) -->
+            <div v-if="isAdmin" class="pt-3 border-t border-neutral-100 dark:border-neutral-800">
               <button
                 type="button"
                 :disabled="isSimulating"

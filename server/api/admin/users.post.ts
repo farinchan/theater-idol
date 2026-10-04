@@ -1,6 +1,10 @@
 import { createAppwriteUser } from '~~/server/utils/appwriteServer'
+import { requireAdminUser } from '~~/server/utils/authGuard'
 
 export default defineEventHandler(async (event) => {
+  // Wajibkan hak akses admin
+  await requireAdminUser(event)
+
   const body = await readBody(event)
 
   if (!body) {
