@@ -3,10 +3,20 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import HlsPlayer from '~/components/HlsPlayer.vue'
 import { useAppwriteLiveChat } from '~/composables/useAppwriteLiveChat'
 import { useAppwriteAuth } from '~/composables/useAppwriteAuth'
+import { useStreamViewers } from '~/composables/useStreamViewers'
 
 const config = useRuntimeConfig()
 const streamUrl = computed(() => (config.public.streamUrl as string) || '')
 const { isStreamEnabled, isStreamRequireLogin, isStreamRequirePremium, streamNotice } = useSiteSettings()
+
+// In-Memory Realtime Stream Viewers Tracker (Tanpa Database)
+const {
+  viewerCount,
+  isConnected: isViewerTrackerConnected,
+  formatViewerCount,
+  startTracking: startViewerTracking,
+  stopTracking: stopViewerTracking
+} = useStreamViewers()
 
 useSeoMeta({
   title: 'Live Streaming Theater Idol - Nonton Siaran Langsung Online',
@@ -110,11 +120,15 @@ onMounted(() => {
     scrollToBottom()
   })
   subscribeToChat()
+
+  // Inisialisasi Realtime Viewer Counter (Murni In-Memory RAM, Tanpa Database)
+  startViewerTracking()
 })
 
 onBeforeUnmount(() => {
   if (liveTimer) clearInterval(liveTimer)
   unsubscribeLiveChat()
+  stopViewerTracking()
 })
 
 // Helper untuk menghitung timestamp pertunjukan dari tanggal dan jam
@@ -377,7 +391,7 @@ const handleSendMessage = async () => {
   <!-- Konten Utama Live Stream -->
   <div v-else class="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl w-full mx-auto">
     <!-- Stream Page Header -->
-    <div class="border-b border-neutral-200 dark:border-neutral-800 pb-6">
+    <div class="border-b border-neutral-200 dark:border-neutral-800 pb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h1 class="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3">
           <UIcon name="i-lucide-radio" class="w-8 h-8 text-primary" />
@@ -386,6 +400,34 @@ const handleSendMessage = async () => {
         <p class="text-neutral-500 dark:text-neutral-400 text-sm mt-1">
           Siaran langsung pertunjukan panggung teater dengan multi-angle HD.
         </p>
+      </div>
+
+      <!-- Realtime Viewers & Live Indicators -->
+      <div class="flex items-center gap-2.5 self-start sm:self-auto">
+        <!-- Live Status Pill -->
+        <div
+          v-if="activeLiveShow"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 text-red-500 border border-red-500/20 text-xs font-bold shadow-xs"
+        >
+          <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <span>LIVE SEKARANG</span>
+        </div>
+
+        <!-- Realtime Viewer Counter Badge -->
+        <div
+          class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800/90 border border-neutral-200 dark:border-neutral-700/70 text-xs font-bold text-neutral-800 dark:text-neutral-100 shadow-xs"
+          :title="`${viewerCount} penonton sedang aktif menyaksikan siaran ini secara realtime`"
+        >
+          <div class="relative flex items-center justify-center">
+            <UIcon name="i-lucide-eye" class="w-4 h-4 text-primary" />
+            <span
+              v-if="isViewerTrackerConnected"
+              class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"
+            />
+          </div>
+          <span class="tabular-nums font-black">{{ formatViewerCount(viewerCount) }}</span>
+          <span class="text-neutral-500 dark:text-neutral-400 font-medium text-[11px]">Penonton</span>
+        </div>
       </div>
     </div>
 
@@ -412,7 +454,19 @@ const handleSendMessage = async () => {
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <UIcon name="i-lucide-messages-square" class="w-4 h-4 text-primary" />
-                <span class="font-bold text-sm">Live Chat Teater</span>
+                <span class="font-bold text-sm">Live Chat</span>
+
+                <!-- Realtime Viewers Pill in Chat Header -->
+                <UBadge
+                  color="neutral"
+                  variant="subtle"
+                  size="xs"
+                  class="font-bold tabular-nums flex items-center gap-1 text-[10px]"
+                  :title="`${viewerCount} penonton online`"
+                >
+                  <UIcon name="i-lucide-eye" class="w-3 h-3 text-primary" />
+                  <span>{{ formatViewerCount(viewerCount) }}</span>
+                </UBadge>
               </div>
 
               <!-- Realtime Connection Status & User Display (Read-Only) -->
