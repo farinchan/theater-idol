@@ -34,6 +34,33 @@ const playerKey = ref(0)
 // Status resolusi YouTube yang aktif terdeteksi
 const activeYtQuality = ref('default')
 
+// Kualitas video yang dipilih pengguna ('auto' | 1080 | 720 | 480 | 360 | 240)
+const selectedQuality = ref<number | string>('auto')
+let ytQualityPollTimer: ReturnType<typeof setInterval> | null = null
+
+const stopYtQualityPolling = () => {
+  if (ytQualityPollTimer) {
+    clearInterval(ytQualityPollTimer)
+    ytQualityPollTimer = null
+  }
+}
+
+const startYtQualityPolling = () => {
+  stopYtQualityPolling()
+  ytQualityPollTimer = setInterval(() => {
+    try {
+      const embed = plyrInstance?.embed
+      if (embed && typeof embed.getPlaybackQuality === 'function') {
+        const q = embed.getPlaybackQuality()
+        if (q && q !== 'unknown' && q !== activeYtQuality.value) {
+          activeYtQuality.value = q
+          updateQualityBadge(plyrInstance)
+        }
+      }
+    } catch {}
+  }, 2500)
+}
+
 // Helper Deteksi YouTube ID dari berbagai format URL
 const getYouTubeVideoId = (url?: string): string | null => {
   if (!url) return null
@@ -57,7 +84,7 @@ const formatYtQuality = (q?: string): string => {
     hd1440: '1440p (2K)',
     hd1080: '1080p HD',
     hd720: '720p HD',
-    large: '480p',
+    large: '480p SD',
     medium: '360p',
     small: '240p',
     tiny: '144p',
@@ -101,13 +128,24 @@ const disableSubtitles = () => {
 
 // Terapkan kualitas video (YouTube & HLS/HTML5)
 const applyQuality = (player: any, val: number | string) => {
+  selectedQuality.value = val
+  if (import.meta.client) {
+    try {
+      localStorage.setItem('theater_replay_quality', String(val))
+    } catch {}
+  }
+
   const ytQualityMap: Record<string, string> = {
+    '2160': 'hd2160',
+    '1440': 'hd1440',
     '1080': 'hd1080',
     '720': 'hd720',
     '480': 'large',
     '360': 'medium',
     '240': 'small',
-    'auto': 'default'
+    '144': 'tiny',
+    'auto': 'default',
+    'default': 'default'
   }
   const ytQuality = ytQualityMap[String(val)] || 'default'
 
@@ -115,13 +153,14 @@ const applyQuality = (player: any, val: number | string) => {
   if (player?.embed) {
     try {
       if (typeof player.embed.setPlaybackQualityRange === 'function') {
-        player.embed.setPlaybackQualityRange(ytQuality)
+        player.embed.setPlaybackQualityRange(ytQuality, ytQuality)
       }
       if (typeof player.embed.setPlaybackQuality === 'function') {
         player.embed.setPlaybackQuality(ytQuality)
       }
       if (typeof player.embed.setOption === 'function') {
         player.embed.setOption('quality', ytQuality)
+        player.embed.setOption('playbackQuality', ytQuality)
       }
     } catch (e) {
       console.warn('Gagal mengatur kualitas embed:', e)
@@ -132,28 +171,40 @@ const applyQuality = (player: any, val: number | string) => {
   try {
     const iframe = containerRef.value?.querySelector('iframe')
     if (iframe && iframe.contentWindow) {
-      iframe.contentWindow.postMessage(
-        JSON.stringify({
-          event: 'command',
-          func: 'setPlaybackQuality',
-          args: [ytQuality]
-        }),
-        '*'
-      )
-      iframe.contentWindow.postMessage(
-        JSON.stringify({
-          event: 'command',
-          func: 'setPlaybackQualityRange',
-          args: [ytQuality]
-        }),
-        '*'
-      )
+      const commands = [
+        { func: 'setPlaybackQuality', args: [ytQuality] },
+        { func: 'setPlaybackQualityRange', args: [ytQuality, ytQuality] },
+        { func: 'setOption', args: ['quality', ytQuality] },
+        { func: 'setOption', args: ['playbackQuality', ytQuality] }
+      ]
+      for (const cmd of commands) {
+        iframe.contentWindow.postMessage(
+          JSON.stringify({
+            event: 'command',
+            func: cmd.func,
+            args: cmd.args
+          }),
+          '*'
+        )
+      }
     }
   } catch {}
 
-  // 3. Jika menggunakan HLS, ubah level bitrate
+  // 3. Buffer flush untuk YouTube:
+  if (isYouTube.value) {
+    try {
+      const curTime = player?.currentTime || 0
+      if (player?.embed && typeof player.embed.seekTo === 'function') {
+        player.embed.seekTo(curTime, true)
+      } else if (player) {
+        player.currentTime = curTime
+      }
+    } catch {}
+  }
+
+  // 4. Jika menggunakan HLS, ubah level bitrate secara nyata
   if (hlsInstance && hlsInstance.levels?.length) {
-    if (val === 'auto') {
+    if (val === 'auto' || val === 'default') {
       hlsInstance.currentLevel = -1
     } else {
       const idx = hlsInstance.levels.findIndex((l: any) => l.height === Number(val))
@@ -161,6 +212,59 @@ const applyQuality = (player: any, val: number | string) => {
         hlsInstance.currentLevel = idx
       }
     }
+  }
+}
+
+// Update label badge kualitas pada tombol Settings
+const updateQualityBadge = (player?: any) => {
+  const p = player || plyrInstance
+  if (!p?.elements?.settings?.buttons?.quality) return
+  const qualityBtn = p.elements.settings.buttons.quality
+  const valueSpan = qualityBtn.querySelector('.plyr__menu__value')
+  if (!valueSpan) return
+
+  const cur = selectedQuality.value || 'auto'
+  if (cur === 'auto' || cur === 'default') {
+    if (isYouTube.value && activeYtQuality.value && activeYtQuality.value !== 'default' && activeYtQuality.value !== 'auto') {
+      valueSpan.textContent = `Otomatis (${formatYtQuality(activeYtQuality.value)})`
+    } else {
+      valueSpan.textContent = 'Otomatis'
+    }
+  } else {
+    valueSpan.textContent = `${cur}p`
+  }
+}
+
+let isQualityMenuSetup = false
+
+// Sinkronisasi status checked dan badge ketika preferensi atau status berubah
+const syncQualityMenuSelection = (player?: any) => {
+  const p = player || plyrInstance
+  if (!p?.elements?.settings?.panels?.quality) return
+  const qualityPane = p.elements.settings.panels.quality
+  const cur = String(selectedQuality.value || 'auto')
+
+  // Perbarui tanda centang radio button
+  qualityPane.querySelectorAll('[role="menuitemradio"]').forEach((btn: any) => {
+    btn.setAttribute('aria-checked', btn.value === cur ? 'true' : 'false')
+  })
+
+  // Perbarui badge status di kartu atas
+  const statusBadge = qualityPane.querySelector('.plyr-yt-quality-badge')
+  if (statusBadge) {
+    statusBadge.textContent =
+      cur === 'auto' || cur === 'default'
+        ? 'Otomatis'
+        : `${cur}p HD`
+  }
+
+  // Perbarui status stream riil YouTube
+  const streamVal = qualityPane.querySelector('.plyr-yt-stream-val')
+  if (streamVal && isYouTube.value) {
+    streamVal.textContent =
+      activeYtQuality.value && activeYtQuality.value !== 'default' && activeYtQuality.value !== 'auto'
+        ? formatYtQuality(activeYtQuality.value)
+        : '720p HD'
   }
 }
 
@@ -177,11 +281,21 @@ const setupQualityMenu = (player: any) => {
   qualityBtn.removeAttribute('hidden')
   qualityBtn.style.display = ''
 
+  // Jika menu sudah pernah dibuat, cukup sinkronkan nilai aktif
+  if (isQualityMenuSetup) {
+    syncQualityMenuSelection(player)
+    updateQualityBadge(player)
+    return
+  }
+  isQualityMenuSetup = true
+
   // Pantau status buka-tutup menu agar tombol dan bar kontrol tidak hilang saat mouse bergerak ke atas
   const container = player.elements?.container
   if (container && !menuObserver) {
     menuObserver = new MutationObserver(() => {
-      const open = container.classList.contains('plyr--menu-open') || Boolean(container.querySelector('[aria-expanded="true"]'))
+      const open =
+        container.classList.contains('plyr--menu-open') ||
+        Boolean(container.querySelector('[aria-expanded="true"]'))
       isMenuOpen.value = open
       if (open && player.elements?.controls) {
         player.elements.controls.hover = true
@@ -221,117 +335,98 @@ const setupQualityMenu = (player: any) => {
     })
   }
 
-  const valueSpan = qualityBtn.querySelector('.plyr__menu__value')
-
-  // =========================================================================
-  // KASUS 1: VIDEO YOUTUBE (Resolusi Otomatis Adaptive HD 100% di Pemutar Teater)
-  // =========================================================================
-  if (isYouTube.value) {
-    const qName = formatYtQuality(activeYtQuality.value)
-    if (valueSpan) {
-      valueSpan.textContent = qName === 'Otomatis' ? 'Otomatis (HD)' : `${qName} (Auto)`
-    }
-
-    menuList.innerHTML = ''
-
-    // 1. Kartu Status Resolusi Streaming Aktif
-    const statusBox = document.createElement('div')
-    statusBox.className = 'plyr-yt-quality-card'
-    statusBox.style.cssText = 'padding: 12px 14px; margin: 4px 6px 8px 6px; border-radius: 10px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12);'
-
-    const statusRow = document.createElement('div')
-    statusRow.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;'
-
-    const statusTitle = document.createElement('span')
-    statusTitle.style.cssText = 'font-size: 11px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 0.5px;'
-    statusTitle.textContent = 'Resolusi Replay'
-
-    const statusBadge = document.createElement('span')
-    statusBadge.className = 'plyr__badge'
-    statusBadge.style.cssText = 'background: #D61515; color: #fff; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 10px;'
-    statusBadge.textContent = qName === 'Otomatis' ? 'Adaptive HD' : qName
-
-    statusRow.appendChild(statusTitle)
-    statusRow.appendChild(statusBadge)
-    statusBox.appendChild(statusRow)
-
-    const statusDesc = document.createElement('p')
-    statusDesc.style.cssText = 'font-size: 11px; color: rgba(255, 255, 255, 0.7); margin: 0; line-height: 1.4;'
-    statusDesc.textContent = 'Kualitas tayangan dikelola secara otomatis (Adaptive Bitrate) hingga 1080p HD mengikuti kecepatan koneksi internet Anda.'
-    statusBox.appendChild(statusDesc)
-
-    menuList.appendChild(statusBox)
-
-    // 2. Opsi Aktif: Kualitas Otomatis (Checked)
-    const autoOptBtn = document.createElement('button')
-    autoOptBtn.type = 'button'
-    autoOptBtn.className = 'plyr__control'
-    autoOptBtn.setAttribute('role', 'menuitemradio')
-    autoOptBtn.setAttribute('aria-checked', 'true')
-    autoOptBtn.style.cssText = 'display: flex; align-items: center; justify-content: space-between; width: 100%;'
-
-    const autoSpan = document.createElement('span')
-    autoSpan.textContent = 'Otomatis (Kualitas Terbaik)'
-
-    const autoBadge = document.createElement('span')
-    autoBadge.className = 'plyr__badge'
-    autoBadge.textContent = 'Aktif'
-
-    autoOptBtn.appendChild(autoSpan)
-    autoOptBtn.appendChild(autoBadge)
-
-    autoOptBtn.addEventListener('click', (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      if (player.elements?.settings?.panels?.home) {
-        qualityPane.hidden = true
-        player.elements.settings.panels.home.hidden = false
+  // Ambil nilai kualitas yang tersimpan
+  let currentVal = selectedQuality.value || 'auto'
+  if (import.meta.client) {
+    try {
+      const saved = localStorage.getItem('theater_replay_quality')
+      if (saved) {
+        currentVal = isNaN(Number(saved)) ? saved : Number(saved)
+        selectedQuality.value = currentVal
       }
-    })
+    } catch {}
+  }
 
-    menuList.appendChild(autoOptBtn)
+  updateQualityBadge(player)
+  menuList.innerHTML = ''
 
-    // 3. Tombol Layar Penuh (Memaksimalkan Resolusi 1080p pada Layar Penuh)
+  // 1. Kartu Info Status Kualitas di bagian atas menu
+  const statusBox = document.createElement('div')
+  statusBox.className = 'plyr-yt-quality-card'
+  statusBox.style.cssText =
+    'padding: 10px 12px; margin: 4px 6px 10px 6px; border-radius: 10px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12);'
+
+  const statusRow = document.createElement('div')
+  statusRow.style.cssText =
+    'display: flex; align-items: center; justify-content: space-between; gap: 8px;'
+
+  const statusTitle = document.createElement('span')
+  statusTitle.style.cssText =
+    'font-size: 11px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 0.5px;'
+  statusTitle.textContent = 'Kualitas Video'
+
+  const statusBadge = document.createElement('span')
+  statusBadge.className = 'plyr__badge plyr-yt-quality-badge'
+  statusBadge.style.cssText =
+    'background: #D61515; color: #fff; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 10px;'
+  statusBadge.textContent =
+    currentVal === 'auto' || currentVal === 'default'
+      ? 'Otomatis'
+      : `${currentVal}p HD`
+
+  statusRow.appendChild(statusTitle)
+  statusRow.appendChild(statusBadge)
+  statusBox.appendChild(statusRow)
+
+  if (isYouTube.value) {
+    const streamInfo = document.createElement('div')
+    streamInfo.style.cssText =
+      'margin-top: 6px; display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: rgba(255, 255, 255, 0.6);'
+
+    const streamLabel = document.createElement('span')
+    streamLabel.textContent = 'Resolusi Aktif:'
+    const streamVal = document.createElement('span')
+    streamVal.className = 'plyr-yt-stream-val'
+    streamVal.style.cssText = 'color: #fff; font-weight: 600;'
+    streamVal.textContent =
+      activeYtQuality.value && activeYtQuality.value !== 'default' && activeYtQuality.value !== 'auto'
+        ? formatYtQuality(activeYtQuality.value)
+        : '720p HD'
+
+    streamInfo.appendChild(streamLabel)
+    streamInfo.appendChild(streamVal)
+    statusBox.appendChild(streamInfo)
+
+    const descText = document.createElement('p')
+    descText.style.cssText =
+      'margin: 6px 0 0 0; font-size: 10px; line-height: 1.4; color: rgba(255, 255, 255, 0.55);'
+    descText.textContent =
+      'Pemutaran resolusi otomatis adaptif. Gunakan mode Layar Penuh untuk memuat kualitas tertinggi (1080p HD).'
+    statusBox.appendChild(descText)
+
+    // Tombol Cepat Layar Penuh (Fullscreen) untuk memicu 1080p
     const fsBtn = document.createElement('button')
     fsBtn.type = 'button'
-    fsBtn.className = 'plyr__control'
-    fsBtn.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; font-size: 11px; cursor: pointer; border-top: 1px solid rgba(255, 255, 255, 0.08);'
-    fsBtn.innerHTML = '<span>⛶ Layar Penuh (Resolusi 1080p Maksimal)</span>'
+    fsBtn.style.cssText =
+      'margin-top: 8px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px; border-radius: 6px; background: rgba(214, 21, 21, 0.25); border: 1px solid rgba(214, 21, 21, 0.5); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer;'
+    fsBtn.textContent = '⛶ Maksimalkan ke Layar Penuh (1080p)'
     fsBtn.addEventListener('click', (e) => {
       e.preventDefault()
       e.stopPropagation()
+      try {
+        player.fullscreen.enter()
+      } catch {}
       if (player.elements?.settings?.panels?.home) {
         qualityPane.hidden = true
         player.elements.settings.panels.home.hidden = false
       }
-      try {
-        player.fullscreen.enter()
-      } catch {}
     })
-    menuList.appendChild(fsBtn)
-
-    return
+    statusBox.appendChild(fsBtn)
   }
 
-  // =========================================================================
-  // KASUS 2: VIDEO HLS ATAU MP4 (Mendukung pemilihan resolusi manual via level)
-  // =========================================================================
-  let currentVal: number | string = 720
-  try {
-    const saved = localStorage.getItem('theater_replay_quality')
-    if (saved) {
-      currentVal = isNaN(Number(saved)) ? saved : Number(saved)
-    }
-  } catch {}
+  menuList.appendChild(statusBox)
 
-  const updateValueLabel = (val: number | string) => {
-    if (valueSpan) {
-      valueSpan.textContent = val === 'auto' || val === 0 ? 'Otomatis' : `${val}p`
-    }
-  }
-  updateValueLabel(currentVal)
-
-  // Daftar pilihan resolusi
+  // 2. Daftar opsi resolusi
   const qualityOptions: Array<{ value: number | string; label: string; badge?: string }> = [
     { value: 1080, label: '1080p', badge: 'HD' },
     { value: 720, label: '720p', badge: 'HD' },
@@ -341,8 +436,6 @@ const setupQualityMenu = (player: any) => {
     { value: 'auto', label: 'Otomatis' }
   ]
 
-  menuList.innerHTML = ''
-
   qualityOptions.forEach(opt => {
     const itemBtn = document.createElement('button')
     itemBtn.type = 'button'
@@ -351,8 +444,11 @@ const setupQualityMenu = (player: any) => {
     const isChecked = String(currentVal) === String(opt.value)
     itemBtn.setAttribute('aria-checked', isChecked ? 'true' : 'false')
     itemBtn.value = String(opt.value)
+    itemBtn.style.cssText =
+      'display: flex; align-items: center; justify-content: space-between; width: 100%;'
 
     const flexSpan = document.createElement('span')
+    flexSpan.style.cssText = 'display: flex; align-items: center; gap: 6px;'
     flexSpan.textContent = opt.label
 
     if (opt.badge) {
@@ -368,19 +464,12 @@ const setupQualityMenu = (player: any) => {
       e.preventDefault()
       e.stopPropagation()
 
-      // Perbarui status checked pada menu
-      menuList.querySelectorAll('[role="menuitemradio"]').forEach((el: any) => {
-        el.setAttribute('aria-checked', 'false')
-      })
-      itemBtn.setAttribute('aria-checked', 'true')
-
       currentVal = opt.value
-      updateValueLabel(opt.value)
-      try {
-        localStorage.setItem('theater_replay_quality', String(opt.value))
-      } catch {}
+      selectedQuality.value = opt.value
+      updateQualityBadge(player)
+      syncQualityMenuSelection(player)
 
-      // Terapkan perubahan kualitas ke video
+      // Terapkan perubahan kualitas ke video (YouTube atau HLS)
       applyQuality(player, opt.value)
 
       // Kembali ke menu utama Settings
@@ -393,8 +482,10 @@ const setupQualityMenu = (player: any) => {
     menuList.appendChild(itemBtn)
   })
 
-  // Terapkan kualitas awal
-  applyQuality(player, currentVal)
+  // Terapkan kualitas awal jika ada preferensi tersimpan
+  if (currentVal) {
+    applyQuality(player, currentVal)
+  }
 }
 
 // Play / Pause Toggle Universal
@@ -415,6 +506,8 @@ const togglePlay = () => {
 
 // Bersihkan instance pemutar sebelum inisialisasi ulang
 const destroyPlayer = () => {
+  isQualityMenuSetup = false
+  stopYtQualityPolling()
   if (menuObserver) {
     menuObserver.disconnect()
     menuObserver = null
@@ -525,14 +618,14 @@ const initPlayer = async () => {
               const q = embed.getPlaybackQuality()
               if (q && q !== 'unknown') {
                 activeYtQuality.value = q
-                setupQualityMenu(plyrInstance)
+                updateQualityBadge(plyrInstance)
               }
             }
             if (typeof embed.addEventListener === 'function') {
               embed.addEventListener('onPlaybackQualityChange', (event: any) => {
                 if (event?.data) {
                   activeYtQuality.value = event.data
-                  setupQualityMenu(plyrInstance)
+                  updateQualityBadge(plyrInstance)
                 }
               })
             }
@@ -547,6 +640,11 @@ const initPlayer = async () => {
         disableSubtitles()
         setupQualityMenu(plyrInstance)
         setupYtListeners()
+
+        // Terapkan kualitas awal yang dipilih
+        if (selectedQuality.value) {
+          applyQuality(plyrInstance, selectedQuality.value)
+        }
 
         const iframe = containerRef.value?.querySelector('iframe')
         if (iframe) {
@@ -563,8 +661,10 @@ const initPlayer = async () => {
         isEnded.value = false
         hasStarted.value = true
         disableSubtitles()
-        setupQualityMenu(plyrInstance)
+        syncQualityMenuSelection(plyrInstance)
+        updateQualityBadge(plyrInstance)
         setupYtListeners()
+        startYtQualityPolling()
 
         if (captionCheckTimer) clearTimeout(captionCheckTimer)
         captionCheckTimer = setTimeout(() => {
@@ -579,17 +679,21 @@ const initPlayer = async () => {
         isEnded.value = false
         hasStarted.value = true
         disableSubtitles()
-        setupQualityMenu(plyrInstance)
+        syncQualityMenuSelection(plyrInstance)
+        updateQualityBadge(plyrInstance)
         setupYtListeners()
+        startYtQualityPolling()
       })
 
       plyrInstance.on('pause', () => {
         isPlaying.value = false
+        stopYtQualityPolling()
       })
 
       plyrInstance.on('ended', () => {
         isPlaying.value = false
         isEnded.value = true
+        stopYtQualityPolling()
       })
 
       plyrInstance.on('error', (event: any) => {
@@ -640,7 +744,8 @@ const initPlayer = async () => {
         isEnded.value = false
         hasStarted.value = true
         disableSubtitles()
-        setupQualityMenu(plyrInstance)
+        syncQualityMenuSelection(plyrInstance)
+        updateQualityBadge(plyrInstance)
       })
 
       plyrInstance.on('playing', () => {
@@ -649,7 +754,8 @@ const initPlayer = async () => {
         isEnded.value = false
         hasStarted.value = true
         disableSubtitles()
-        setupQualityMenu(plyrInstance)
+        syncQualityMenuSelection(plyrInstance)
+        updateQualityBadge(plyrInstance)
       })
 
       plyrInstance.on('pause', () => {

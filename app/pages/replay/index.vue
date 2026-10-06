@@ -141,7 +141,7 @@ const replayShows = computed(() => {
 
       const ytId = getYouTubeVideoId(show.replay_url)
       const ytThumbnail = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : ''
-      const mediaType = ytId ? 'YouTube' : (show.replay_url?.toLowerCase().includes('.mp4') ? 'MP4' : 'Video')
+      const mediaType = show.replay_url?.toLowerCase().includes('.mp4') ? 'MP4' : 'Video'
 
       return {
         id: show.$id || String(show.id),
