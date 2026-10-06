@@ -31,34 +31,16 @@ const isMenuOpen = ref(false)
 const errorMessage = ref('')
 const playerKey = ref(0)
 
-// Status resolusi YouTube yang aktif terdeteksi
-const activeYtQuality = ref('default')
+// Kualitas video yang dipilih pengguna (1080 | 720 | 480 | 360 | 240) - Default ke tertinggi: 1080p
+const selectedQuality = ref<number | string>(1080)
 
-// Kualitas video yang dipilih pengguna ('auto' | 1080 | 720 | 480 | 360 | 240)
-const selectedQuality = ref<number | string>('auto')
-let ytQualityPollTimer: ReturnType<typeof setInterval> | null = null
-
-const stopYtQualityPolling = () => {
-  if (ytQualityPollTimer) {
-    clearInterval(ytQualityPollTimer)
-    ytQualityPollTimer = null
-  }
-}
-
-const startYtQualityPolling = () => {
-  stopYtQualityPolling()
-  ytQualityPollTimer = setInterval(() => {
-    try {
-      const embed = plyrInstance?.embed
-      if (embed && typeof embed.getPlaybackQuality === 'function') {
-        const q = embed.getPlaybackQuality()
-        if (q && q !== 'unknown' && q !== activeYtQuality.value) {
-          activeYtQuality.value = q
-          updateQualityBadge(plyrInstance)
-        }
-      }
-    } catch {}
-  }, 2500)
+// Format label badge kualitas
+const formatQualityBadge = (q: string | number): string => {
+  const str = String(q)
+  if (str === 'auto' || str === 'default') return 'Otomatis'
+  if (str === '1080' || str === '720') return `${str}p HD`
+  if (str === '480') return `${str}p SD`
+  return `${str}p`
 }
 
 // Helper Deteksi YouTube ID dari berbagai format URL
@@ -74,25 +56,6 @@ const getYouTubeVideoId = (url?: string): string | null => {
 const youtubeId = computed(() => getYouTubeVideoId(props.src))
 const isYouTube = computed(() => Boolean(youtubeId.value))
 
-// Format resolusi YouTube yang ramah pengguna
-const formatYtQuality = (q?: string): string => {
-  if (!q) return 'Otomatis'
-  const key = q.toLowerCase()
-  const map: Record<string, string> = {
-    hd2160: '4K Ultra HD',
-    highres: '4K Ultra HD',
-    hd1440: '1440p (2K)',
-    hd1080: '1080p HD',
-    hd720: '720p HD',
-    large: '480p SD',
-    medium: '360p',
-    small: '240p',
-    tiny: '144p',
-    auto: 'Otomatis',
-    default: 'Otomatis'
-  }
-  return map[key] || q
-}
 
 // Helper Cek apakah URL adalah HLS stream (.m3u8)
 const isHlsUrl = (url?: string): boolean => {
@@ -128,10 +91,10 @@ const disableSubtitles = () => {
 
 // Terapkan kualitas video (YouTube & HLS/HTML5)
 const applyQuality = (player: any, val: number | string) => {
-  selectedQuality.value = val
+  selectedQuality.value = val === 'auto' || val === 'default' ? 1080 : Number(val)
   if (import.meta.client) {
     try {
-      localStorage.setItem('theater_replay_quality', String(val))
+      localStorage.setItem('theater_replay_quality', String(selectedQuality.value))
     } catch {}
   }
 
@@ -143,11 +106,9 @@ const applyQuality = (player: any, val: number | string) => {
     '480': 'large',
     '360': 'medium',
     '240': 'small',
-    '144': 'tiny',
-    'auto': 'default',
-    'default': 'default'
+    '144': 'tiny'
   }
-  const ytQuality = ytQualityMap[String(val)] || 'default'
+  const ytQuality = ytQualityMap[String(selectedQuality.value)] || 'hd1080'
 
   // 1. YouTube IFrame API methods jika tersedia
   if (player?.embed) {
@@ -204,13 +165,11 @@ const applyQuality = (player: any, val: number | string) => {
 
   // 4. Jika menggunakan HLS, ubah level bitrate secara nyata
   if (hlsInstance && hlsInstance.levels?.length) {
-    if (val === 'auto' || val === 'default') {
-      hlsInstance.currentLevel = -1
+    const idx = hlsInstance.levels.findIndex((l: any) => l.height === Number(selectedQuality.value))
+    if (idx !== -1) {
+      hlsInstance.currentLevel = idx
     } else {
-      const idx = hlsInstance.levels.findIndex((l: any) => l.height === Number(val))
-      if (idx !== -1) {
-        hlsInstance.currentLevel = idx
-      }
+      hlsInstance.currentLevel = -1
     }
   }
 }
@@ -223,16 +182,8 @@ const updateQualityBadge = (player?: any) => {
   const valueSpan = qualityBtn.querySelector('.plyr__menu__value')
   if (!valueSpan) return
 
-  const cur = selectedQuality.value || 'auto'
-  if (cur === 'auto' || cur === 'default') {
-    if (isYouTube.value && activeYtQuality.value && activeYtQuality.value !== 'default' && activeYtQuality.value !== 'auto') {
-      valueSpan.textContent = `Otomatis (${formatYtQuality(activeYtQuality.value)})`
-    } else {
-      valueSpan.textContent = 'Otomatis'
-    }
-  } else {
-    valueSpan.textContent = `${cur}p`
-  }
+  const cur = selectedQuality.value || 1080
+  valueSpan.textContent = cur === 'auto' ? 'Otomatis' : `${cur}p`
 }
 
 let isQualityMenuSetup = false
@@ -242,7 +193,7 @@ const syncQualityMenuSelection = (player?: any) => {
   const p = player || plyrInstance
   if (!p?.elements?.settings?.panels?.quality) return
   const qualityPane = p.elements.settings.panels.quality
-  const cur = String(selectedQuality.value || 'auto')
+  const cur = String(selectedQuality.value || 1080)
 
   // Perbarui tanda centang radio button
   qualityPane.querySelectorAll('[role="menuitemradio"]').forEach((btn: any) => {
@@ -252,19 +203,7 @@ const syncQualityMenuSelection = (player?: any) => {
   // Perbarui badge status di kartu atas
   const statusBadge = qualityPane.querySelector('.plyr-yt-quality-badge')
   if (statusBadge) {
-    statusBadge.textContent =
-      cur === 'auto' || cur === 'default'
-        ? 'Otomatis'
-        : `${cur}p HD`
-  }
-
-  // Perbarui status stream riil YouTube
-  const streamVal = qualityPane.querySelector('.plyr-yt-stream-val')
-  if (streamVal && isYouTube.value) {
-    streamVal.textContent =
-      activeYtQuality.value && activeYtQuality.value !== 'default' && activeYtQuality.value !== 'auto'
-        ? formatYtQuality(activeYtQuality.value)
-        : '720p HD'
+    statusBadge.textContent = formatQualityBadge(cur)
   }
 }
 
@@ -335,15 +274,17 @@ const setupQualityMenu = (player: any) => {
     })
   }
 
-  // Ambil nilai kualitas yang tersimpan
-  let currentVal = selectedQuality.value || 'auto'
+  // Ambil nilai kualitas yang tersimpan (Default tertinggi: 1080)
+  let currentVal: number | string = 1080
   if (import.meta.client) {
     try {
       const saved = localStorage.getItem('theater_replay_quality')
-      if (saved) {
-        currentVal = isNaN(Number(saved)) ? saved : Number(saved)
-        selectedQuality.value = currentVal
+      if (saved && saved !== 'auto' && saved !== 'default' && !isNaN(Number(saved))) {
+        currentVal = Number(saved)
+      } else {
+        currentVal = 1080
       }
+      selectedQuality.value = currentVal
     } catch {}
   }
 
@@ -369,60 +310,37 @@ const setupQualityMenu = (player: any) => {
   statusBadge.className = 'plyr__badge plyr-yt-quality-badge'
   statusBadge.style.cssText =
     'background: #D61515; color: #fff; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 10px;'
-  statusBadge.textContent =
-    currentVal === 'auto' || currentVal === 'default'
-      ? 'Otomatis'
-      : `${currentVal}p HD`
+  statusBadge.textContent = formatQualityBadge(currentVal)
 
   statusRow.appendChild(statusTitle)
   statusRow.appendChild(statusBadge)
   statusBox.appendChild(statusRow)
 
-  if (isYouTube.value) {
-    const streamInfo = document.createElement('div')
-    streamInfo.style.cssText =
-      'margin-top: 6px; display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: rgba(255, 255, 255, 0.6);'
+  const descText = document.createElement('p')
+  descText.style.cssText =
+    'margin: 6px 0 0 0; font-size: 10px; line-height: 1.4; color: rgba(255, 255, 255, 0.55);'
+  descText.textContent =
+    'Secara default video diputar pada kualitas tertinggi (1080p Full HD). Anda dapat memilih opsi resolusi di bawah ini.'
+  statusBox.appendChild(descText)
 
-    const streamLabel = document.createElement('span')
-    streamLabel.textContent = 'Resolusi Aktif:'
-    const streamVal = document.createElement('span')
-    streamVal.className = 'plyr-yt-stream-val'
-    streamVal.style.cssText = 'color: #fff; font-weight: 600;'
-    streamVal.textContent =
-      activeYtQuality.value && activeYtQuality.value !== 'default' && activeYtQuality.value !== 'auto'
-        ? formatYtQuality(activeYtQuality.value)
-        : '720p HD'
-
-    streamInfo.appendChild(streamLabel)
-    streamInfo.appendChild(streamVal)
-    statusBox.appendChild(streamInfo)
-
-    const descText = document.createElement('p')
-    descText.style.cssText =
-      'margin: 6px 0 0 0; font-size: 10px; line-height: 1.4; color: rgba(255, 255, 255, 0.55);'
-    descText.textContent =
-      'Pemutaran resolusi otomatis adaptif. Gunakan mode Layar Penuh untuk memuat kualitas tertinggi (1080p HD).'
-    statusBox.appendChild(descText)
-
-    // Tombol Cepat Layar Penuh (Fullscreen) untuk memicu 1080p
-    const fsBtn = document.createElement('button')
-    fsBtn.type = 'button'
-    fsBtn.style.cssText =
-      'margin-top: 8px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px; border-radius: 6px; background: rgba(214, 21, 21, 0.25); border: 1px solid rgba(214, 21, 21, 0.5); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer;'
-    fsBtn.textContent = '⛶ Maksimalkan ke Layar Penuh (1080p)'
-    fsBtn.addEventListener('click', (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      try {
-        player.fullscreen.enter()
-      } catch {}
-      if (player.elements?.settings?.panels?.home) {
-        qualityPane.hidden = true
-        player.elements.settings.panels.home.hidden = false
-      }
-    })
-    statusBox.appendChild(fsBtn)
-  }
+  // Tombol Cepat Layar Penuh (Fullscreen)
+  const fsBtn = document.createElement('button')
+  fsBtn.type = 'button'
+  fsBtn.style.cssText =
+    'margin-top: 8px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px; border-radius: 6px; background: rgba(214, 21, 21, 0.25); border: 1px solid rgba(214, 21, 21, 0.5); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer;'
+  fsBtn.textContent = '⛶ Buka Layar Penuh (Fullscreen)'
+  fsBtn.addEventListener('click', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      player.fullscreen.enter()
+    } catch {}
+    if (player.elements?.settings?.panels?.home) {
+      qualityPane.hidden = true
+      player.elements.settings.panels.home.hidden = false
+    }
+  })
+  statusBox.appendChild(fsBtn)
 
   menuList.appendChild(statusBox)
 
@@ -507,7 +425,6 @@ const togglePlay = () => {
 // Bersihkan instance pemutar sebelum inisialisasi ulang
 const destroyPlayer = () => {
   isQualityMenuSetup = false
-  stopYtQualityPolling()
   if (menuObserver) {
     menuObserver.disconnect()
     menuObserver = null
@@ -590,7 +507,7 @@ const initPlayer = async () => {
         poster: props.poster || undefined,
         settings: ['quality', 'speed'],
         speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
-        quality: { default: 720, options: [1080, 720, 480, 360, 240] },
+        quality: { default: 1080, options: [1080, 720, 480, 360, 240] },
         seekTime: 10,
         clickToPlay: true,
         tooltips: { controls: true, seek: true },
@@ -610,38 +527,12 @@ const initPlayer = async () => {
         }
       })
 
-      const setupYtListeners = () => {
-        try {
-          const embed = plyrInstance?.embed
-          if (embed) {
-            if (typeof embed.getPlaybackQuality === 'function') {
-              const q = embed.getPlaybackQuality()
-              if (q && q !== 'unknown') {
-                activeYtQuality.value = q
-                updateQualityBadge(plyrInstance)
-              }
-            }
-            if (typeof embed.addEventListener === 'function') {
-              embed.addEventListener('onPlaybackQualityChange', (event: any) => {
-                if (event?.data) {
-                  activeYtQuality.value = event.data
-                  updateQualityBadge(plyrInstance)
-                }
-              })
-            }
-          }
-        } catch (e) {
-          console.warn('[ReplayPlayer] Error listening to YT quality:', e)
-        }
-      }
-
       plyrInstance.on('ready', () => {
         isLoading.value = false
         disableSubtitles()
         setupQualityMenu(plyrInstance)
-        setupYtListeners()
 
-        // Terapkan kualitas awal yang dipilih
+        // Terapkan kualitas awal (Default 1080p Full HD)
         if (selectedQuality.value) {
           applyQuality(plyrInstance, selectedQuality.value)
         }
@@ -663,13 +554,10 @@ const initPlayer = async () => {
         disableSubtitles()
         syncQualityMenuSelection(plyrInstance)
         updateQualityBadge(plyrInstance)
-        setupYtListeners()
-        startYtQualityPolling()
 
         if (captionCheckTimer) clearTimeout(captionCheckTimer)
         captionCheckTimer = setTimeout(() => {
           disableSubtitles()
-          setupYtListeners()
         }, 1200)
       })
 
@@ -681,19 +569,15 @@ const initPlayer = async () => {
         disableSubtitles()
         syncQualityMenuSelection(plyrInstance)
         updateQualityBadge(plyrInstance)
-        setupYtListeners()
-        startYtQualityPolling()
       })
 
       plyrInstance.on('pause', () => {
         isPlaying.value = false
-        stopYtQualityPolling()
       })
 
       plyrInstance.on('ended', () => {
         isPlaying.value = false
         isEnded.value = true
-        stopYtQualityPolling()
       })
 
       plyrInstance.on('error', (event: any) => {
