@@ -72,18 +72,23 @@ export default defineEventHandler(async (event) => {
   const tablesDB = new TablesDB(client)
   const databases = new Databases(client)
 
-  const currentTimeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+  // Waktu dibuat dalam format UTC ISO string standar
+  const currentUtcIso = new Date().toISOString()
   const newDocId = ID.unique()
+
+  // Ambil avatar akun terverifikasi (atau fallback dari payload body jika ada)
+  const clientAvatar = body.avatar && typeof body.avatar === 'string' ? body.avatar.trim() : ''
+  const effectiveAvatar = authUser.prefs?.avatar || clientAvatar || ''
 
   // Payload murni dari identitas akun server terverifikasi
   const payload = {
     user_id: authUser.$id,
     user_name: authUser.name || authUser.email.split('@')[0] || 'Penonton',
-    user_avatar: authUser.prefs?.avatar || '',
+    user_avatar: effectiveAvatar,
     is_admin: isAdmin, // HANYA bernilai true jika akun verified admin dari Appwrite
     message: rawMessage,
     show_id: body.show_id ? String(body.show_id) : '',
-    time: currentTimeStr
+    time: currentUtcIso
   }
 
   const permissions = ['read("any")']

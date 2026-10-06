@@ -69,13 +69,19 @@ const {
   fetchMessages,
   subscribeToChat,
   unsubscribe: unsubscribeLiveChat,
-  sendMessage: sendLiveChatMessage
+  sendMessage: sendLiveChatMessage,
+  formatChatTime,
+  formatChatDateTime
 } = useAppwriteLiveChat()
 
 const { user, isAdmin, isPremium } = useAppwriteAuth()
 
 const chatContainerRef = ref<HTMLDivElement | null>(null)
 const chatInput = ref('')
+const failedAvatarIds = ref(new Set<string | number>())
+const onAvatarError = (id: string | number) => {
+  failedAvatarIds.value.add(id)
+}
 
 // Strategi 3: Kunci live chat di luar jam show (kecuali jika admin)
 const isChatLocked = computed(() => {
@@ -496,7 +502,13 @@ const handleSendMessage = async () => {
                   class="flex items-center gap-1.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-md"
                   :title="`Pengirim: ${currentSenderName}`"
                 >
-                  <UIcon name="i-lucide-user" class="w-3.5 h-3.5 text-neutral-400" />
+                  <img
+                    v-if="user?.prefs?.avatar"
+                    :src="user.prefs.avatar"
+                    :alt="currentSenderName"
+                    class="w-3.5 h-3.5 rounded-full object-cover shrink-0"
+                  />
+                  <UIcon v-else name="i-lucide-user" class="w-3.5 h-3.5 text-neutral-400 shrink-0" />
                   <span class="max-w-[90px] truncate">{{ currentSenderName }}</span>
                 </div>
                 <UButton
@@ -537,12 +549,22 @@ const handleSendMessage = async () => {
             >
               <div class="flex items-center justify-between font-semibold mb-1 gap-2">
                 <div class="flex items-center gap-1.5 min-w-0">
-                  <!-- User Avatar Initial -->
+                  <!-- User Avatar Image atau Inisial Depan -->
                   <div
-                    class="w-4 h-4 rounded-full flex items-center justify-center font-bold text-[9px] flex-shrink-0"
+                    class="w-4 h-4 rounded-full flex items-center justify-center font-bold text-[9px] flex-shrink-0 overflow-hidden ring-1 ring-black/5 dark:ring-white/10"
                     :class="msg.is_admin ? 'bg-amber-500 text-white' : msg.user_name === currentSenderName ? 'bg-primary text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300'"
                   >
-                    {{ (msg.user_name || 'W').charAt(0).toUpperCase() }}
+                    <img
+                      v-if="msg.user_avatar && !failedAvatarIds.has(msg.$id || msg.id)"
+                      :src="msg.user_avatar"
+                      :alt="msg.user_name"
+                      class="w-full h-full object-cover"
+                      loading="lazy"
+                      @error="onAvatarError(msg.$id || msg.id)"
+                    />
+                    <span v-else>
+                      {{ (msg.user_name || 'W').charAt(0).toUpperCase() }}
+                    </span>
                   </div>
 
                   <span
@@ -572,7 +594,7 @@ const handleSendMessage = async () => {
                 </div>
 
                 <div class="flex items-center gap-1 text-[10px] text-neutral-400 flex-shrink-0">
-                  <span>{{ msg.time }}</span>
+                  <span :title="formatChatDateTime(msg.time, msg.$createdAt)">{{ formatChatTime(msg.time, msg.$createdAt) }}</span>
                   <UIcon
                     v-if="msg.isOptimistic"
                     name="i-lucide-clock"

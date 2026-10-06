@@ -16,33 +16,90 @@ export interface ChatMessage {
   isOptimistic?: boolean
 }
 
-// Starter seed messages if table is new or offline fallback
+// Helper memformat timestamp UTC ke waktu lokal masing-masing pengguna (format jam:menit)
+export const formatChatTime = (timeVal?: string, createdAtVal?: string): string => {
+  // 1. Cek jika timeVal adalah format ISO date time (contoh: 2026-10-06T09:44:00.000Z)
+  if (timeVal && timeVal.includes('T') && !isNaN(Date.parse(timeVal))) {
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(new Date(timeVal))
+    } catch {}
+  }
+
+  // 2. Jika createdAtVal tersedia dan valid ISO
+  if (createdAtVal && !isNaN(Date.parse(createdAtVal))) {
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(new Date(createdAtVal))
+    } catch {}
+  }
+
+  // 3. Fallback jika timeVal berupa string waktu sederhana lama ("19:24")
+  if (timeVal) {
+    return timeVal.trim().slice(0, 5)
+  }
+
+  return ''
+}
+
+// Helper memformat tanggal dan waktu lengkap lokal untuk tooltip saat hover
+export const formatChatDateTime = (timeVal?: string, createdAtVal?: string): string => {
+  const target = (timeVal && timeVal.includes('T')) ? timeVal : (createdAtVal || timeVal)
+  if (!target) return ''
+  try {
+    const d = new Date(target)
+    if (!isNaN(d.getTime())) {
+      return new Intl.DateTimeFormat(undefined, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).format(d)
+    }
+  } catch {}
+  return target
+}
+
+// Starter seed messages if table is new or offline fallback (dalam format UTC ISO)
 const defaultSeedMessages: ChatMessage[] = [
   {
     id: 1,
     user_name: 'Rian_OshiFreya',
-    time: '19:24',
+    user_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Rian&backgroundColor=f43f5e',
+    time: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
     message: 'Freya center Faint auranya gokil banget malam ini! 🔥',
     is_admin: false
   },
   {
     id: 2,
     user_name: 'WotaJakarta',
-    time: '19:25',
+    user_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=WotaJakarta&backgroundColor=0284c7',
+    time: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
     message: 'Koreografi unit song-nya makin sinkron dan rapi!',
     is_admin: false
   },
   {
     id: 3,
     user_name: 'ChristyFansID',
-    time: '19:26',
+    user_avatar: '',
+    time: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
     message: 'Hai! Hai! Semangat semuanya! ❤️',
     is_admin: false
   },
   {
     id: 4,
     user_name: 'StaffTeater',
-    time: '19:27',
+    user_avatar: '',
+    time: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
     message: 'Selamat menikmati pertunjukan teater! Mohon jaga ketertiban di live chat ya.',
     is_admin: true
   }
@@ -187,7 +244,7 @@ export const useAppwriteLiveChat = () => {
           is_admin: !!row.is_admin,
           message: row.message || '',
           show_id: row.show_id || '',
-          time: row.time || (row.$createdAt ? new Date(row.$createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '19:00'),
+          time: row.time || row.$createdAt || new Date().toISOString(),
           $createdAt: row.$createdAt
         }))
 
@@ -246,7 +303,7 @@ export const useAppwriteLiveChat = () => {
             is_admin: !!payload.is_admin,
             message: payload.message || '',
             show_id: payload.show_id || '',
-            time: payload.time || new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+            time: payload.time || payload.$createdAt || new Date().toISOString(),
             $createdAt: payload.$createdAt
           }
 
@@ -343,7 +400,7 @@ export const useAppwriteLiveChat = () => {
     const senderId = user.value?.$id || ''
     const senderIsAdmin = isAdmin.value
     const senderAvatar = user.value?.prefs?.avatar || ''
-    const currentTimeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    const currentUtcIso = new Date().toISOString()
 
     // 1. Optimistic Update (Instant feedback in UI)
     const optimisticId = `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`
@@ -355,9 +412,9 @@ export const useAppwriteLiveChat = () => {
       is_admin: senderIsAdmin,
       message: trimmed,
       show_id: showId || '',
-      time: currentTimeStr,
+      time: currentUtcIso,
       isOptimistic: true,
-      $createdAt: new Date().toISOString()
+      $createdAt: currentUtcIso
     }
 
     messages.value.push(optimisticMsg)
@@ -378,7 +435,8 @@ export const useAppwriteLiveChat = () => {
         headers,
         body: {
           message: trimmed,
-          show_id: showId || ''
+          show_id: showId || '',
+          avatar: senderAvatar
         }
       })
 
@@ -423,6 +481,8 @@ export const useAppwriteLiveChat = () => {
     subscribeToChat,
     unsubscribe,
     sendMessage,
+    formatChatTime,
+    formatChatDateTime,
     tableId,
     dbId
   }
