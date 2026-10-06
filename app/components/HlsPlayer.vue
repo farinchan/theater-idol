@@ -274,24 +274,102 @@ const setQuality = (levelId: number) => {
   triggerControlsActivity()
 }
 
+// Helper deteksi perangkat hp/mobile
+const isMobileDevice = (): boolean => {
+  if (!import.meta.client || typeof window === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  const isMobileUa = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua)
+  const isTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+  const isSmallScreen = window.innerWidth <= 1024
+  return isMobileUa || (isTouchScreen && isSmallScreen)
+}
+
+// Kunci orientasi ke landscape pada hp saat fullscreen
+const lockLandscape = async () => {
+  if (!import.meta.client || typeof window === 'undefined') return
+  try {
+    const screenObj = window.screen as any
+    if (screenObj?.orientation?.lock) {
+      await screenObj.orientation.lock('landscape').catch(() => {})
+    } else if (screenObj?.lockOrientation) {
+      screenObj.lockOrientation('landscape')
+    } else if (screenObj?.webkitLockOrientation) {
+      screenObj.webkitLockOrientation('landscape')
+    } else if (screenObj?.mozLockOrientation) {
+      screenObj.mozLockOrientation('landscape')
+    } else if (screenObj?.msLockOrientation) {
+      screenObj.msLockOrientation('landscape')
+    }
+  } catch {}
+}
+
+// Buka kunci orientasi saat keluar fullscreen
+const unlockOrientation = () => {
+  if (!import.meta.client || typeof window === 'undefined') return
+  try {
+    const screenObj = window.screen as any
+    if (screenObj?.orientation?.unlock) {
+      screenObj.orientation.unlock()
+    } else if (screenObj?.unlockOrientation) {
+      screenObj.unlockOrientation()
+    } else if (screenObj?.webkitUnlockOrientation) {
+      screenObj.webkitUnlockOrientation()
+    } else if (screenObj?.mozUnlockOrientation) {
+      screenObj.mozUnlockOrientation()
+    } else if (screenObj?.msUnlockOrientation) {
+      screenObj.msUnlockOrientation()
+    }
+  } catch {}
+}
+
+const getFullscreenElement = (): Element | null => {
+  if (!import.meta.client || typeof document === 'undefined') return null
+  return (
+    document.fullscreenElement ||
+    (document as any).webkitFullscreenElement ||
+    (document as any).mozFullScreenElement ||
+    (document as any).msFullscreenElement ||
+    ((videoRef.value as any)?.webkitDisplayingFullscreen ? videoRef.value : null)
+  )
+}
+
 const toggleFullscreen = async () => {
   if (!containerRef.value) return
 
+  const isCurrentlyFs = !!getFullscreenElement()
+
   try {
-    if (!document.fullscreenElement) {
+    if (!isCurrentlyFs) {
       if (containerRef.value.requestFullscreen) {
         await containerRef.value.requestFullscreen()
       } else if ((containerRef.value as any).webkitRequestFullscreen) {
         await (containerRef.value as any).webkitRequestFullscreen()
+      } else if ((containerRef.value as any).mozRequestFullScreen) {
+        await (containerRef.value as any).mozRequestFullScreen()
+      } else if ((containerRef.value as any).msRequestFullscreen) {
+        await (containerRef.value as any).msRequestFullscreen()
+      } else if ((videoRef.value as any)?.webkitEnterFullscreen) {
+        // Fallback untuk iOS Safari di iPhone yang hanya mendukung fullscreen native pada <video>
+        (videoRef.value as any).webkitEnterFullscreen()
       }
       isFullscreen.value = true
+
+      // Kunci layar ke landscape pada hp
+      if (isMobileDevice()) {
+        await lockLandscape()
+      }
     } else {
       if (document.exitFullscreen) {
         await document.exitFullscreen()
       } else if ((document as any).webkitExitFullscreen) {
         await (document as any).webkitExitFullscreen()
+      } else if ((document as any).mozCancelFullScreen) {
+        await (document as any).mozCancelFullScreen()
+      } else if ((document as any).msExitFullscreen) {
+        await (document as any).msExitFullscreen()
       }
       isFullscreen.value = false
+      unlockOrientation()
     }
   } catch (err) {
     console.warn('Fullscreen error:', err)
@@ -418,14 +496,37 @@ const onVideoError = () => {
 }
 
 const onFullscreenChange = () => {
-  isFullscreen.value = !!document.fullscreenElement
+  const isFs = !!getFullscreenElement()
+  isFullscreen.value = isFs
+  if (isFs) {
+    if (isMobileDevice()) {
+      lockLandscape()
+    }
+  } else {
+    unlockOrientation()
+  }
 }
 
 onMounted(() => {
   if (import.meta.client) {
     isPipSupported.value = typeof document !== 'undefined' && 'pictureInPictureEnabled' in document
     document.addEventListener('fullscreenchange', onFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+    document.addEventListener('mozfullscreenchange', onFullscreenChange)
+    document.addEventListener('MSFullscreenChange', onFullscreenChange)
     window.addEventListener('keydown', onKeyDown)
+
+    // Deteksi fullscreen native untuk iOS Safari di iPhone
+    if (videoRef.value) {
+      videoRef.value.addEventListener('webkitbeginfullscreen', () => {
+        isFullscreen.value = true
+        if (isMobileDevice()) lockLandscape()
+      })
+      videoRef.value.addEventListener('webkitendfullscreen', () => {
+        isFullscreen.value = false
+        unlockOrientation()
+      })
+    }
 
     // Check if initial src exists
     if (props.src && props.src.trim() !== '') {
@@ -439,7 +540,11 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (import.meta.client) {
+    unlockOrientation()
     document.removeEventListener('fullscreenchange', onFullscreenChange)
+    document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+    document.removeEventListener('mozfullscreenchange', onFullscreenChange)
+    document.removeEventListener('MSFullscreenChange', onFullscreenChange)
     window.removeEventListener('keydown', onKeyDown)
     if (controlsTimeout) clearTimeout(controlsTimeout)
   }
@@ -450,15 +555,15 @@ onBeforeUnmount(() => {
 <template>
   <div
     ref="containerRef"
-    class="relative bg-black rounded-2xl overflow-hidden aspect-video flex flex-col justify-between text-white group select-none"
+    class="theater-hls-container relative bg-black rounded-2xl overflow-hidden aspect-video flex flex-col justify-between text-white group select-none"
     @mousemove="onMouseMove"
     @mouseleave="onMouseLeave"
     @dblclick="toggleFullscreen"
   >
-    <!-- HTML5 Video Element -->
+    <!-- HTML5 Video Element: object-contain mempertahankan rasio 16:9 tanpa di-zoom atau dipotong -->
     <video
       ref="videoRef"
-      class="absolute inset-0 w-full h-full object-cover cursor-pointer block"
+      class="absolute inset-0 w-full h-full object-contain cursor-pointer block"
       playsinline
       @click="togglePlay"
       @play="onPlay"
@@ -718,5 +823,28 @@ onBeforeUnmount(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* Mode Fullscreen: Pastikan kontainer mengisi layar dan video tetap pada rasio 16:9 (contain, tanpa zoom/crop) */
+.theater-hls-container:fullscreen,
+.theater-hls-container:-webkit-full-screen,
+.theater-hls-container:-moz-full-screen,
+.theater-hls-container:-ms-fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  aspect-ratio: auto !important;
+  border-radius: 0 !important;
+  background-color: #000000 !important;
+}
+
+.theater-hls-container:fullscreen video,
+.theater-hls-container:-webkit-full-screen video,
+.theater-hls-container:-moz-full-screen video,
+.theater-hls-container:-ms-fullscreen video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
 }
 </style>
