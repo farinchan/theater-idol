@@ -18,15 +18,20 @@ export interface ChatMessage {
 
 // Helper memformat timestamp UTC ke waktu lokal masing-masing pengguna (format jam:menit)
 export const formatChatTime = (timeVal?: string, createdAtVal?: string): string => {
-  // 1. Cek jika timeVal adalah format ISO date time (contoh: 2026-10-06T09:44:00.000Z)
-  if (timeVal && timeVal.includes('T') && !isNaN(Date.parse(timeVal))) {
-    try {
-      return new Intl.DateTimeFormat(undefined, {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      }).format(new Date(timeVal))
-    } catch {}
+  // 1. Cek jika timeVal adalah format ISO date time (contoh: 2026-10-06T09:44:00Z)
+  if (timeVal && timeVal.includes('T')) {
+    const parseTarget = timeVal.endsWith('Z') || timeVal.includes('+') || (timeVal.includes('-') && timeVal.lastIndexOf('-') > 10)
+      ? timeVal
+      : timeVal + 'Z'
+    if (!isNaN(Date.parse(parseTarget))) {
+      try {
+        return new Intl.DateTimeFormat(undefined, {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).format(new Date(parseTarget))
+      } catch {}
+    }
   }
 
   // 2. Jika createdAtVal tersedia dan valid ISO
@@ -50,8 +55,11 @@ export const formatChatTime = (timeVal?: string, createdAtVal?: string): string 
 
 // Helper memformat tanggal dan waktu lengkap lokal untuk tooltip saat hover
 export const formatChatDateTime = (timeVal?: string, createdAtVal?: string): string => {
-  const target = (timeVal && timeVal.includes('T')) ? timeVal : (createdAtVal || timeVal)
+  let target = (timeVal && timeVal.includes('T')) ? timeVal : (createdAtVal || timeVal)
   if (!target) return ''
+  if (target.includes('T') && !target.endsWith('Z') && !target.includes('+') && !(target.includes('-') && target.lastIndexOf('-') > 10)) {
+    target = target + 'Z'
+  }
   try {
     const d = new Date(target)
     if (!isNaN(d.getTime())) {
@@ -69,13 +77,13 @@ export const formatChatDateTime = (timeVal?: string, createdAtVal?: string): str
   return target
 }
 
-// Starter seed messages if table is new or offline fallback (dalam format UTC ISO)
+// Starter seed messages if table is new or offline fallback (dalam format UTC ISO <= 20 chars)
 const defaultSeedMessages: ChatMessage[] = [
   {
     id: 1,
     user_name: 'Rian_OshiFreya',
     user_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Rian&backgroundColor=f43f5e',
-    time: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
+    time: new Date(Date.now() - 4 * 60 * 1000).toISOString().slice(0, 19) + 'Z',
     message: 'Freya center Faint auranya gokil banget malam ini! 🔥',
     is_admin: false
   },
@@ -83,7 +91,7 @@ const defaultSeedMessages: ChatMessage[] = [
     id: 2,
     user_name: 'WotaJakarta',
     user_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=WotaJakarta&backgroundColor=0284c7',
-    time: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+    time: new Date(Date.now() - 3 * 60 * 1000).toISOString().slice(0, 19) + 'Z',
     message: 'Koreografi unit song-nya makin sinkron dan rapi!',
     is_admin: false
   },
@@ -91,7 +99,7 @@ const defaultSeedMessages: ChatMessage[] = [
     id: 3,
     user_name: 'ChristyFansID',
     user_avatar: '',
-    time: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+    time: new Date(Date.now() - 2 * 60 * 1000).toISOString().slice(0, 19) + 'Z',
     message: 'Hai! Hai! Semangat semuanya! ❤️',
     is_admin: false
   },
@@ -99,7 +107,7 @@ const defaultSeedMessages: ChatMessage[] = [
     id: 4,
     user_name: 'StaffTeater',
     user_avatar: '',
-    time: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
+    time: new Date(Date.now() - 1 * 60 * 1000).toISOString().slice(0, 19) + 'Z',
     message: 'Selamat menikmati pertunjukan teater! Mohon jaga ketertiban di live chat ya.',
     is_admin: true
   }
@@ -400,7 +408,7 @@ export const useAppwriteLiveChat = () => {
     const senderId = user.value?.$id || ''
     const senderIsAdmin = isAdmin.value
     const senderAvatar = user.value?.prefs?.avatar || ''
-    const currentUtcIso = new Date().toISOString()
+    const currentUtcIso = new Date().toISOString().slice(0, 19) + 'Z'
 
     // 1. Optimistic Update (Instant feedback in UI)
     const optimisticId = `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`
@@ -450,10 +458,68 @@ export const useAppwriteLiveChat = () => {
       saveCachedMessages(messages.value)
       return { success: true, message: optimisticMsg }
     } catch (err: any) {
-      console.warn('Chat send error via server API:', err?.message)
+      console.warn('Chat send error via server API, mencoba fallback tulis langsung via Appwrite SDK klien:', err?.message)
+
+      // Fallback: Tulis langsung ke Appwrite Database menggunakan sesi aktif browser klien jika server mengalami kendala scope
+      try {
+        const fallbackDocId = ID.unique()
+        const fallbackPermissions = ['read("any")']
+        const docPayload = {
+          user_id: senderId,
+          user_name: senderName,
+          user_avatar: senderAvatar,
+          is_admin: senderIsAdmin,
+          message: trimmed,
+          show_id: showId || '',
+          time: currentUtcIso
+        }
+        let clientDocRes: any
+
+        const tryClientWrite = async (p: typeof docPayload) => {
+          try {
+            return await tablesDB.createRow(dbId.value, tableId.value, fallbackDocId, p, fallbackPermissions)
+          } catch {
+            try {
+              return await tablesDB.createRow(dbId.value, tableId.value, fallbackDocId, p)
+            } catch {
+              try {
+                return await databases.createDocument(dbId.value, tableId.value, fallbackDocId, p, fallbackPermissions)
+              } catch {
+                return await databases.createDocument(dbId.value, tableId.value, fallbackDocId, p)
+              }
+            }
+          }
+        }
+
+        try {
+          clientDocRes = await tryClientWrite(docPayload)
+        } catch (clientErr: any) {
+          if (clientErr?.message?.includes('"time"') && clientErr?.message?.includes('no longer than')) {
+            const match = clientErr.message.match(/no longer than (\d+) chars/i)
+            const maxLen = match ? parseInt(match[1], 10) : 19
+            clientDocRes = await tryClientWrite({
+              ...docPayload,
+              time: docPayload.time.slice(0, maxLen)
+            })
+          } else {
+            throw clientErr
+          }
+        }
+
+        if (clientDocRes) {
+          optimisticMsg.$id = clientDocRes.$id
+          optimisticMsg.id = clientDocRes.$id
+          optimisticMsg.isOptimistic = false
+          saveCachedMessages(messages.value)
+          return { success: true, message: optimisticMsg }
+        }
+      } catch (fallbackErr: any) {
+        console.warn('Fallback tulis langsung klien juga gagal:', fallbackErr?.message)
+      }
+
       const errorMsg = err?.data?.statusMessage || err?.message || 'Gagal mengirim pesan'
       chatError.value = errorMsg
-      // Hapus pesan optimistik jika ditolak oleh server (misal karena rate-limit)
+      // Hapus pesan optimistik jika ditolak oleh server dan fallback gagal
       messages.value = messages.value.filter(m => m.id !== optimisticId)
       saveCachedMessages(messages.value)
       return { success: false, error: errorMsg }
