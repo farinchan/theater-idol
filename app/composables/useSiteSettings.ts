@@ -23,6 +23,7 @@ export interface SiteSettings {
   isReplayRequirePremium: boolean
   streamNotice?: string
   replayNotice?: string
+  whatsappChannel?: string
   updatedAt?: string
 }
 
@@ -37,6 +38,7 @@ export const useSiteSettings = () => {
     isReplayRequirePremium: false,
     streamNotice: 'Fitur Live Stream saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.',
     replayNotice: 'Fitur Arsip Replay saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.',
+    whatsappChannel: '',
     updatedAt: new Date().toISOString()
   }))
 
@@ -54,6 +56,7 @@ export const useSiteSettings = () => {
   const appName = computed(() => settings.value?.appName || 'Theater Idol')
   const streamNotice = computed(() => settings.value?.streamNotice || 'Fitur Live Stream sedang ditutup.')
   const replayNotice = computed(() => settings.value?.replayNotice || 'Fitur Arsip Replay sedang ditutup.')
+  const whatsappChannel = computed(() => settings.value?.whatsappChannel || '')
 
   // Memuat pengaturan dari API server (/api/settings)
   const fetchSettings = async () => {
@@ -112,6 +115,7 @@ export const useSiteSettings = () => {
     appName,
     streamNotice,
     replayNotice,
+    whatsappChannel,
     isLoading,
     isSaving,
     error,

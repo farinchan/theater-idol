@@ -13,7 +13,7 @@ const streamUrl = computed(() => {
   }
   return ''
 })
-const { isStreamEnabled, isStreamRequireLogin, isStreamRequirePremium, streamNotice } = useSiteSettings()
+const { isStreamEnabled, isStreamRequireLogin, isStreamRequirePremium, streamNotice, whatsappChannel } = useSiteSettings()
 
 // In-Memory Realtime Stream Viewers Tracker (Tanpa Database)
 const {
@@ -440,6 +440,21 @@ const handleSendMessage = async () => {
           <span class="tabular-nums font-black">{{ formatViewerCount(viewerCount) }}</span>
           <span class="text-neutral-500 dark:text-neutral-400 font-medium text-[11px]">Penonton</span>
         </div>
+
+        <!-- Tombol Gabung Channel WhatsApp (Header) -->
+        <a
+          v-if="whatsappChannel"
+          :href="whatsappChannel"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all hover:scale-[1.02] shrink-0"
+          title="Bergabung ke Saluran / Channel WhatsApp Resmi"
+        >
+          <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
+            <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24M8.53 7.33c-.16 0-.42.06-.64.3-.22.24-.85.83-.85 2.02s.87 2.34.99 2.5c.12.16 1.7 2.6 4.12 3.65.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.45-.59 1.65-1.17.2-.58.2-1.07.14-1.17-.06-.1-.22-.16-.47-.28s-1.45-.72-1.68-.8-.39-.12-.56.12-.65.81-.8 1-.3.2-.55.08c-.25-.12-1.05-.39-2-1.23-.74-.66-1.23-1.47-1.38-1.72s-.02-.38.11-.5c.11-.11.25-.29.37-.43s.16-.25.25-.41c.08-.17.04-.31-.02-.43s-.56-1.34-.76-1.84c-.2-.48-.41-.42-.56-.43h-.48z"/>
+          </svg>
+          <span>Channel WhatsApp</span>
+        </a>
       </div>
     </div>
 
@@ -683,6 +698,44 @@ const handleSendMessage = async () => {
           </template>
         </UCard>
       </div>
+    </div>
+
+    <!-- Banner Bergabung Channel WhatsApp -->
+    <div
+      v-if="whatsappChannel"
+      class="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs"
+    >
+      <div class="flex items-start sm:items-center gap-3.5">
+        <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5 sm:mt-0">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6 fill-current" viewBox="0 0 24 24">
+            <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24M8.53 7.33c-.16 0-.42.06-.64.3-.22.24-.85.83-.85 2.02s.87 2.34.99 2.5c.12.16 1.7 2.6 4.12 3.65.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.45-.59 1.65-1.17.2-.58.2-1.07.14-1.17-.06-.1-.22-.16-.47-.28s-1.45-.72-1.68-.8-.39-.12-.56.12-.65.81-.8 1-.3.2-.55.08c-.25-.12-1.05-.39-2-1.23-.74-.66-1.23-1.47-1.38-1.72s-.02-.38.11-.5c.11-.11.25-.29.37-.43s.16-.25.25-.41c.08-.17.04-.31-.02-.43s-.56-1.34-.76-1.84c-.2-.48-.41-.42-.56-.43h-.48z"/>
+          </svg>
+        </div>
+        <div class="space-y-0.5">
+          <div class="flex items-center gap-2">
+            <h3 class="font-bold text-sm sm:text-base text-neutral-900 dark:text-white">
+              Saluran WhatsApp Theater-Idol
+            </h3>
+            <UBadge color="success" variant="subtle" size="xs" class="font-bold">Komunitas</UBadge>
+          </div>
+          <p class="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+            Gabung sekarang untuk menerima pengumuman jadwal show, tautan live streaming, dan informasi terkini langsung di WhatsApp.
+          </p>
+        </div>
+      </div>
+
+      <a
+        :href="whatsappChannel"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/25 transition-all hover:scale-[1.02] shrink-0"
+      >
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+          <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24M8.53 7.33c-.16 0-.42.06-.64.3-.22.24-.85.83-.85 2.02s.87 2.34.99 2.5c.12.16 1.7 2.6 4.12 3.65.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.45-.59 1.65-1.17.2-.58.2-1.07.14-1.17-.06-.1-.22-.16-.47-.28s-1.45-.72-1.68-.8-.39-.12-.56.12-.65.81-.8 1-.3.2-.55.08c-.25-.12-1.05-.39-2-1.23-.74-.66-1.23-1.47-1.38-1.72s-.02-.38.11-.5c.11-.11.25-.29.37-.43s.16-.25.25-.41c.08-.17.04-.31-.02-.43s-.56-1.34-.76-1.84c-.2-.48-.41-.42-.56-.43h-.48z"/>
+        </svg>
+        <span>Bergabung ke Channel WhatsApp</span>
+        <UIcon name="i-lucide-external-link" class="w-3.5 h-3.5" />
+      </a>
     </div>
 
     <!-- Full Row: Informasi Pertunjukan (Tanpa Card) -->

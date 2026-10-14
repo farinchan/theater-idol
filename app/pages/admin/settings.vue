@@ -24,7 +24,8 @@ const form = reactive({
   isStreamRequirePremium: false,
   isReplayRequirePremium: false,
   streamNotice: '',
-  replayNotice: ''
+  replayNotice: '',
+  whatsappChannel: ''
 })
 
 // Inisialisasi nilai form dari settings Appwrite
@@ -39,6 +40,7 @@ const syncFormWithSettings = () => {
     form.isReplayRequirePremium = settings.value.isReplayRequirePremium ?? false
     form.streamNotice = settings.value.streamNotice || 'Fitur Live Stream saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.'
     form.replayNotice = settings.value.replayNotice || 'Fitur Arsip Replay saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.'
+    form.whatsappChannel = settings.value.whatsappChannel || ''
   }
 }
 
@@ -63,7 +65,8 @@ const isDirty = computed(() => {
     form.isStreamRequirePremium !== (settings.value.isStreamRequirePremium ?? false) ||
     form.isReplayRequirePremium !== (settings.value.isReplayRequirePremium ?? false) ||
     form.streamNotice !== (settings.value.streamNotice || 'Fitur Live Stream saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.') ||
-    form.replayNotice !== (settings.value.replayNotice || 'Fitur Arsip Replay saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.')
+    form.replayNotice !== (settings.value.replayNotice || 'Fitur Arsip Replay saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.') ||
+    form.whatsappChannel !== (settings.value.whatsappChannel || '')
   )
 })
 
@@ -90,7 +93,8 @@ const handleSave = async () => {
     isStreamRequirePremium: form.isStreamRequirePremium,
     isReplayRequirePremium: form.isReplayRequirePremium,
     streamNotice: form.streamNotice.trim(),
-    replayNotice: form.replayNotice.trim()
+    replayNotice: form.replayNotice.trim(),
+    whatsappChannel: form.whatsappChannel.trim()
   })
 }
 
@@ -106,6 +110,7 @@ const handleResetToDefault = () => {
     form.isReplayRequirePremium = false
     form.streamNotice = 'Fitur Live Stream saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.'
     form.replayNotice = 'Fitur Arsip Replay saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.'
+    form.whatsappChannel = ''
   }
 }
 
@@ -300,6 +305,66 @@ const formattedUpdatedAt = computed(() => {
               />
               <p class="text-[11px] text-neutral-400">
                 Disarankan nama pendek dan padat (1-2 kata). Default: <strong>Theater Idol</strong>.
+              </p>
+            </div>
+          </div>
+
+          <!-- Card: Saluran / Channel WhatsApp -->
+          <div class="p-6 rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-4">
+            <div class="flex items-start justify-between gap-4">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <div class="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                      <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24M8.53 7.33c-.16 0-.42.06-.64.3-.22.24-.85.83-.85 2.02s.87 2.34.99 2.5c.12.16 1.7 2.6 4.12 3.65.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.45-.59 1.65-1.17.2-.58.2-1.07.14-1.17-.06-.1-.22-.16-.47-.28s-1.45-.72-1.68-.8-.39-.12-.56.12-.65.81-.8 1-.3.2-.55.08c-.25-.12-1.05-.39-2-1.23-.74-.66-1.23-1.47-1.38-1.72s-.02-.38.11-.5c.11-.11.25-.29.37-.43s.16-.25.25-.41c.08-.17.04-.31-.02-.43s-.56-1.34-.76-1.84c-.2-.48-.41-.42-.56-.43h-.48z"/>
+                    </svg>
+                  </div>
+                  <h3 class="font-bold text-base text-neutral-900 dark:text-white">Channel WhatsApp Komunitas</h3>
+                </div>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                  Tautan channel WhatsApp untuk tombol bergabung bagi penonton di halaman Live Stream (<code>/stream</code>).
+                </p>
+              </div>
+              <UBadge
+                :color="form.whatsappChannel ? 'success' : 'neutral'"
+                variant="subtle"
+                size="xs"
+                class="font-bold"
+              >
+                {{ form.whatsappChannel ? 'Terpasang' : 'Belum Diatur' }}
+              </UBadge>
+            </div>
+
+            <div class="space-y-1.5 pt-1">
+              <label class="text-xs font-bold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                <span>Link Saluran / Channel WhatsApp</span>
+                <span v-if="form.whatsappChannel" class="text-[11px] text-emerald-600 dark:text-emerald-400 font-normal">
+                  Aktif di halaman /stream
+                </span>
+              </label>
+              <div class="flex items-center gap-2">
+                <UInput
+                  v-model="form.whatsappChannel"
+                  placeholder="Contoh: https://whatsapp.com/channel/..."
+                  size="md"
+                  icon="i-lucide-link"
+                  class="w-full font-medium"
+                />
+                <UButton
+                  v-if="form.whatsappChannel"
+                  :to="form.whatsappChannel"
+                  target="_blank"
+                  color="neutral"
+                  variant="outline"
+                  size="md"
+                  icon="i-lucide-external-link"
+                  label="Uji Link"
+                  class="shrink-0 cursor-pointer font-semibold"
+                  title="Buka tautan di tab baru"
+                />
+              </div>
+              <p class="text-[11px] text-neutral-400">
+                Format: URL lengkap channel WhatsApp resmi teater, contoh: <code>https://whatsapp.com/channel/0029VaXXXXX</code>. Jika dikosongkan, tombol WhatsApp di halaman /stream otomatis disembunyikan.
               </p>
             </div>
           </div>
@@ -634,6 +699,19 @@ const formattedUpdatedAt = computed(() => {
                   <div class="text-[10px] text-neutral-400">Akses: Publik Bebas</div>
                 </div>
                 <UBadge color="success" variant="subtle" size="xs">Aktif</UBadge>
+              </div>
+
+              <!-- Channel WhatsApp Preview -->
+              <div class="flex items-center justify-between p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/50">
+                <div class="space-y-0.5">
+                  <div class="font-medium text-neutral-700 dark:text-neutral-300">Channel WhatsApp</div>
+                  <div class="text-[10px] text-neutral-400">
+                    {{ form.whatsappChannel ? 'Tombol aktif di /stream' : 'Tombol disembunyikan' }}
+                  </div>
+                </div>
+                <UBadge :color="form.whatsappChannel ? 'success' : 'neutral'" variant="subtle" size="xs">
+                  {{ form.whatsappChannel ? 'Aktif' : 'Nonaktif' }}
+                </UBadge>
               </div>
             </div>
           </div>
