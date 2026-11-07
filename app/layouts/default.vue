@@ -19,93 +19,15 @@ interface NavItem {
   description: string
 }
 
-// Hubungkan ke data pertunjukan & setlist untuk deteksi live show
-const { shows: appwriteShows, fetchShows } = useAppwriteShow()
-const { setlists, fetchSetlists } = useAppwriteSetlist()
-
-// Muat data show secara SSR & Hydration
-await useAsyncData('default_layout_shows', async () => {
-  await Promise.all([fetchShows(), fetchSetlists()])
-  return true
+// Hardcoded data pertunjukan aktif & portal settings
+const isStreamEnabled = ref(true)
+const isReplayEnabled = ref(true)
+const activeLiveShow = ref({
+  id: 'show-1',
+  title: 'Cara Meminum Ramune',
+  time: '19:00 WIB',
+  isLiveNow: true
 })
-
-// Timer reaktif untuk memperbarui status live tiap 30 detik
-const currentTime = ref(Date.now())
-let liveTimer: any = null
-
-onMounted(() => {
-  fetchShows()
-  fetchSetlists()
-  liveTimer = setInterval(() => {
-    currentTime.value = Date.now()
-  }, 30000)
-})
-
-onUnmounted(() => {
-  if (liveTimer) clearInterval(liveTimer)
-})
-
-// Helper untuk menghitung timestamp pertunjukan
-const getShowTimestamp = (dateVal?: string, timeVal?: string): number => {
-  if (!dateVal) return 0
-  try {
-    const d = new Date(dateVal)
-    if (!isNaN(d.getTime())) {
-      let hours = 19
-      let minutes = 0
-      if (timeVal) {
-        const match = timeVal.match(/(\d{1,2}):(\d{2})/)
-        if (match) {
-          hours = parseInt(match[1], 10)
-          minutes = parseInt(match[2], 10)
-        }
-      }
-      const year = d.getFullYear()
-      const month = d.getMonth()
-      const date = d.getDate()
-      return new Date(year, month, date, hours, minutes, 0).getTime()
-    }
-  } catch {}
-  return 0
-}
-
-// Pertunjukan yang sedang aktif / live:
-// Muncul 10 menit sebelum jam show (start - 10 menit)
-// Berlangsung hingga 2 jam 30 menit setelah jam show (start + 2.5 jam)
-const activeLiveShow = computed(() => {
-  const now = currentTime.value
-  const TEN_MINUTES = 10 * 60 * 1000
-  const TWO_AND_HALF_HOURS = 2.5 * 60 * 60 * 1000 // 150 menit
-
-  const active = appwriteShows.value.find(s => {
-    const startTs = getShowTimestamp(s.date, s.time)
-    if (!startTs) return false
-    const windowStart = startTs - TEN_MINUTES
-    const windowEnd = startTs + TWO_AND_HALF_HOURS
-    return now >= windowStart && now <= windowEnd
-  })
-
-  if (active) {
-    const related = setlists.value.find(
-      set => set.$id === active.setlist_id || String(set.id) === String(active.setlist_id)
-    )
-    const formattedTime = active.time && active.time.includes(':')
-      ? `${active.time.slice(0, 5)} WIB`
-      : (active.time || '19:00 WIB')
-    const startTs = getShowTimestamp(active.date, active.time)
-
-    return {
-      id: active.$id || active.id,
-      title: related?.title_id || 'Pertunjukan Teater',
-      time: formattedTime,
-      isLiveNow: now >= startTs
-    }
-  }
-
-  return null
-})
-
-const { isStreamEnabled, isReplayEnabled } = useSiteSettings()
 
 const navItems = computed<NavItem[]>(() => {
   const items: NavItem[] = [
@@ -163,8 +85,20 @@ const isRouteActive = (to: string) => {
   return route.path === to
 }
 
-const { appName } = useAppName()
-const { user, logout, isAdmin } = useAppwriteAuth()
+const appName = ref('Theater Idol')
+const user = ref({
+  $id: 'user-admin',
+  name: 'Admin Theater Idol',
+  email: 'admin@theater-idol.web.id',
+  labels: ['admin'],
+  prefs: {
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=JktRuby&backgroundColor=d61515'
+  }
+})
+const isAdmin = computed(() => true)
+const logout = () => {
+  user.value = null
+}
 
 const adminNavItems: NavItem[] = [
   {

@@ -1,8 +1,19 @@
 <script setup lang="ts">
-import { account } from '~/appwrite'
 const route = useRoute()
-const { appName } = useAppName()
-const { user, isAdmin, isPremium, premiumUntil, checkSession, isLoading, isInitialized } = useAppwriteAuth()
+const appName = ref('Theater Idol')
+const user = ref({
+  $id: 'user-admin',
+  name: 'Admin Theater Idol',
+  email: 'admin@theater-idol.web.id',
+  labels: ['admin'],
+  prefs: { avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=JktRuby&backgroundColor=d61515' }
+})
+const isAdmin = computed(() => true)
+const isPremium = computed(() => true)
+const premiumUntil = computed(() => '30 Hari ke Depan')
+const checkSession = async () => user.value
+const isLoading = ref(false)
+const isInitialized = ref(true)
 
 useSeoMeta({
   title: 'Beli Membership Premium - Theater Idol',
@@ -205,33 +216,27 @@ const userEmail = computed(() => {
 const serverOrders = ref<any[]>([])
 
 const fetchOrders = async () => {
-  if (!import.meta.client) return
-  if (!user.value?.$id) {
+  if (!user.value) {
     serverOrders.value = []
     return
   }
-  try {
-    const params = new URLSearchParams()
-    if (user.value.$id) params.set('user_id', user.value.$id)
-    if (user.value.email) params.set('user_email', user.value.email)
-
-    const headers: Record<string, string> = {}
-    try {
-      const jwtRes = await account.createJWT()
-      if (jwtRes?.jwt) {
-        headers['X-Appwrite-JWT'] = jwtRes.jwt
-      }
-    } catch {}
-
-    const res = await $fetch<any>(`/api/payment/orders?${params.toString()}`, { headers })
-    if (res?.success && Array.isArray(res.orders)) {
-      serverOrders.value = res.orders
-    } else {
-      serverOrders.value = []
+  serverOrders.value = [
+    {
+      id: 'PREM-DEMO-1021',
+      paymentId: 'pay_demo_qris',
+      userId: user.value.$id || 'user-1',
+      userEmail: user.value.email || 'admin@theater-idol.web.id',
+      userName: user.value.name || 'Admin',
+      planId: 'plan_14d',
+      planName: 'Member Premium 14 Hari',
+      durationDays: 14,
+      amount: 20000,
+      method: 'QRIS',
+      status: 'completed',
+      createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+      paidAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString()
     }
-  } catch (err) {
-    console.error('Gagal mengambil daftar pesanan:', err)
-  }
+  ]
 }
 
 // Pantau perubahan status akun user untuk mengambil transaksi yang sesuai
@@ -333,43 +338,26 @@ const handleCreatePayment = async () => {
   paymentError.value = null
 
   try {
-    const payload = {
-      plan_id: selectedPlan.value.id,
-      user_id: user.value.$id,
-      user_email: user.value.email,
-      user_name: user.value.name || userDisplayName.value
+    const mockOrder = {
+      id: `PREM-${Date.now()}-DEMO`,
+      paymentId: `pay_demo_${Date.now()}`,
+      userId: user.value.$id,
+      userEmail: user.value.email,
+      userName: user.value.name || userDisplayName.value,
+      planId: selectedPlan.value.id,
+      planName: selectedPlan.value.name,
+      durationDays: selectedPlan.value.durationDays,
+      amount: selectedPlan.value.price,
+      method: 'QRIS',
+      paymentLinkUrl: 'https://example.com/mock-qris-invoice',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 3600 * 1000).toISOString()
     }
-
-    const headers: Record<string, string> = {}
-    try {
-      const jwtRes = await account.createJWT()
-      if (jwtRes?.jwt) {
-        headers['X-Appwrite-JWT'] = jwtRes.jwt
-      }
-    } catch {}
-
-    const res = await $fetch<any>('/api/payment/create', {
-      method: 'POST',
-      headers,
-      body: payload
-    })
-
-    if (res?.success && res.order) {
-      currentOrder.value = res.order
-      isPlanModalOpen.value = false
-      isPaymentModalOpen.value = true
-      await fetchOrders()
-
-      // Buka otomatis tautan pembayaran di tab baru
-      if (res.order.paymentLinkUrl && import.meta.client) {
-        window.open(res.order.paymentLinkUrl, '_blank')
-      }
-    } else {
-      throw new Error(res?.message || 'Gagal membuat tagihan pembayaran.')
-    }
-  } catch (err: any) {
-    console.error('Error creating payment:', err)
-    paymentError.value = err?.data?.statusMessage || err?.message || 'Gagal membuat tagihan pembayaran QRIS.'
+    currentOrder.value = mockOrder
+    serverOrders.value.unshift(mockOrder)
+    isPlanModalOpen.value = false
+    isPaymentModalOpen.value = true
   } finally {
     isCreatingPayment.value = false
   }
@@ -398,22 +386,9 @@ const copyPaymentLink = async () => {
 const checkPaymentStatus = async () => {
   if (!currentOrder.value?.id) return
   isCheckingStatus.value = true
-  try {
-    const res = await $fetch<any>(`/api/payment/orders?order_id=${currentOrder.value.id}`)
-    if (res?.success && res.order) {
-      currentOrder.value = res.order
-      if (res.order.status === 'completed') {
-        await checkSession()
-        await fetchOrders()
-        isPaymentModalOpen.value = false
-        isSuccessModalOpen.value = true
-      }
-    }
-  } catch (err) {
-    console.error('Gagal mengecek status pesanan:', err)
-  } finally {
+  setTimeout(() => {
     isCheckingStatus.value = false
-  }
+  }, 500)
 }
 
 // Simulasi pembayaran sandbox selesai (berguna untuk pengujian)
@@ -421,32 +396,10 @@ const handleSimulateComplete = async () => {
   if (!currentOrder.value?.id) return
   isSimulating.value = true
   try {
-    const headers: Record<string, string> = {}
-    try {
-      const jwtRes = await account.createJWT()
-      if (jwtRes?.jwt) {
-        headers['X-Appwrite-JWT'] = jwtRes.jwt
-      }
-    } catch {}
-
-    const res = await $fetch<any>('/api/payment/simulate-complete', {
-      method: 'POST',
-      headers,
-      body: { order_id: currentOrder.value.id }
-    })
-
-    if (res?.success) {
-      if (res.newExpiry) {
-        successExpiryDate.value = res.newExpiry
-      }
-      currentOrder.value = res.order
-      await checkSession()
-      await fetchOrders()
-      isPaymentModalOpen.value = false
-      isSuccessModalOpen.value = true
-    }
-  } catch (err: any) {
-    console.error('Gagal simulasi pembayaran:', err)
+    currentOrder.value.status = 'completed'
+    currentOrder.value.paidAt = new Date().toISOString()
+    isPaymentModalOpen.value = false
+    isSuccessModalOpen.value = true
   } finally {
     isSimulating.value = false
   }

@@ -4,22 +4,6 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@nuxt/ui', '@vite-pwa/nuxt'],
   css: ['plyr/dist/plyr.css', '~/assets/css/main.css'],
-  routeRules: {
-    '/**': {
-      headers: {
-        'X-Frame-Options': 'SAMEORIGIN',
-        'X-Content-Type-Options': 'nosniff',
-        'Referrer-Policy': 'strict-origin-when-cross-origin',
-        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
-      }
-    },
-    '/api/**': {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    }
-  },
   app: {
     head: {
       htmlAttrs: {
@@ -139,27 +123,8 @@ export default defineNuxtConfig({
     }
   },
   runtimeConfig: {
-    sumopodApiKey: process.env.SUMOPOD_API_KEY || '',
-    sumopodPayEndpoint: process.env.SUMOPOD_PAY_ENDPOINT || '',
-    sumopodWebhookSecret: process.env.SUMOPOD_WEBHOOK_SECRET || '',
-    sumopodWebhookToken: process.env.SUMOPOD_WEBHOOK_TOKEN || '',
-    appwriteApiKey: process.env.APPWRITE_API_KEY || '',
-    streamUrl: process.env.STREAM_URL || '',
-    streamUseProxy: process.env.STREAM_USE_PROXY !== 'false',
-    streamProxyOrigin: process.env.STREAM_PROXY_ORIGIN || '',
     public: {
-      appName: process.env.APP_NAME || 'Theater Idol',
-      isStreamConfigured: !!(process.env.STREAM_URL),
-      streamEndpoint: '/api/stream/live.m3u8',
-      streamUseProxy: process.env.STREAM_USE_PROXY !== 'false',
-      appwriteEndpoint: process.env.APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1',
-      appwriteProjectId: process.env.APPWRITE_PROJECT_ID || '',
-      appwriteDatabaseId: process.env.APPWRITE_DATABASE_ID || '',
-      appwriteTableSetlistId: process.env.APPWRITE_TABLE_SETLIST_ID || process.env.APPWRITE_COLLECTION_SETLIST_ID || '',
-      appwriteCollectionSetlistId: process.env.APPWRITE_COLLECTION_SETLIST_ID || process.env.APPWRITE_TABLE_SETLIST_ID || '',
-      appwriteBucketId: process.env.APPWRITE_BUCKET_ID || '',
-      appwriteTableShowId: process.env.APPWRITE_TABLE_SHOW_ID || '',
-      appwriteTableChatId: process.env.APPWRITE_TABLE_CHAT_ID || process.env.APPWRITE_COLLECTION_CHAT_ID || ''
+      appName: 'Theater Idol'
     }
   }
 })

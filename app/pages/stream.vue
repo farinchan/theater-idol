@@ -1,80 +1,121 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import HlsPlayer from '~/components/HlsPlayer.vue'
-import { useAppwriteLiveChat } from '~/composables/useAppwriteLiveChat'
-import { useAppwriteAuth } from '~/composables/useAppwriteAuth'
-import { useStreamViewers } from '~/composables/useStreamViewers'
 
-const config = useRuntimeConfig()
-// Virtual endpoint agar STREAM_URL upstream 100% tersembunyi dari DevTools Network
-const streamUrl = computed(() => {
-  if (config.public.isStreamConfigured) {
-    return (config.public.streamEndpoint as string) || '/api/stream/live.m3u8'
+// Mock demo stream URL & portal settings
+const streamUrl = ref('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8')
+const isStreamEnabled = ref(true)
+const isStreamRequireLogin = ref(false)
+const isStreamRequirePremium = ref(false)
+const streamNotice = ref('Fitur Live Stream saat ini sedang ditutup.')
+const whatsappChannel = ref('https://whatsapp.com/channel/demo')
+
+// Mock Live Viewers
+const viewerCount = ref(1482)
+const isViewerTrackerConnected = ref(true)
+const formatViewerCount = (num: number) => num ? new Intl.NumberFormat('id-ID').format(num) : '1'
+const startViewerTracking = () => {}
+const stopViewerTracking = () => {}
+
+// Mock User & Auth
+const user = ref({
+  $id: 'user-admin',
+  name: 'Admin Theater Idol',
+  email: 'admin@theater-idol.web.id',
+  prefs: { avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=JktRuby&backgroundColor=d61515' }
+})
+const isAdmin = computed(() => true)
+const isPremium = computed(() => true)
+const isLoggedIn = computed(() => true)
+
+// Mock Live Chat Messages
+const messages = ref([
+  {
+    id: 1,
+    user_name: 'Rian_OshiFreya',
+    user_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Rian&backgroundColor=f43f5e',
+    time: '19:02',
+    message: 'Freya center Faint auranya gokil banget malam ini! 🔥',
+    is_admin: false
+  },
+  {
+    id: 2,
+    user_name: 'WotaJakarta',
+    user_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=WotaJakarta&backgroundColor=0284c7',
+    time: '19:03',
+    message: 'Koreografi unit song-nya makin sinkron dan rapi!',
+    is_admin: false
+  },
+  {
+    id: 3,
+    user_name: 'StaffTeater',
+    user_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Staff&backgroundColor=d61515',
+    time: '19:04',
+    message: 'Selamat menikmati pertunjukan! Jangan lupa patuhi etika live chat.',
+    is_admin: true
+  },
+  {
+    id: 4,
+    user_name: 'ChristyFansID',
+    user_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=ChristyFans&backgroundColor=059669',
+    time: '19:05',
+    message: 'Chant bareng yok: Ooooshiii ga kirei! 👏',
+    is_admin: false
   }
-  return ''
-})
-const { isStreamEnabled, isStreamRequireLogin, isStreamRequirePremium, streamNotice, whatsappChannel } = useSiteSettings()
+])
 
-// In-Memory Realtime Stream Viewers Tracker (Tanpa Database)
-const {
-  viewerCount,
-  isConnected: isViewerTrackerConnected,
-  formatViewerCount,
-  startTracking: startViewerTracking,
-  stopTracking: stopViewerTracking
-} = useStreamViewers()
+const isConnected = ref(true)
+const isSubscribed = ref(true)
+const isChatLoading = ref(false)
+const isSending = ref(false)
+const currentSenderName = ref('Admin Theater Idol')
+const cooldownRemaining = ref(0)
+const chatError = ref(null)
 
-useSeoMeta({
-  title: 'Live Streaming Theater Idol - Nonton Siaran Langsung Online',
-  ogTitle: 'Live Streaming Theater Idol - Nonton Siaran Langsung Online',
-  description: 'Saksikan siaran langsung pertunjukan Theater Idol secara real-time dengan kualitas streaming HD jernih dan fitur live chat interaktif.',
-  ogDescription: 'Saksikan siaran langsung pertunjukan Theater Idol secara real-time dengan kualitas streaming HD jernih dan fitur live chat interaktif.',
-  ogImage: '/icon.png',
-  ogType: 'video.other',
-  twitterCard: 'summary_large_image',
-  twitterTitle: 'Live Streaming Theater Idol - Nonton Siaran Langsung Online',
-  twitterDescription: 'Saksikan siaran langsung pertunjukan Theater Idol secara real-time dengan kualitas streaming HD jernih dan fitur live chat interaktif.',
-  twitterImage: '/icon.png'
-})
+const initNickname = () => {}
+const fetchMessages = () => {}
+const subscribeToChat = () => {}
+const unsubscribeLiveChat = () => {}
 
-useHead({
-  script: [
-    {
-      type: 'application/ld+json',
-      innerHTML: JSON.stringify({
-        '@context': 'https://schema.org',
-        '@type': 'BroadcastEvent',
-        'name': 'Live Streaming Theater Idol',
-        'description': 'Siaran langsung pertunjukan panggung Theater Idol',
-        'isLiveBroadcast': true,
-        'videoFormat': 'HD',
-        'url': 'https://theater-idol.web.id/stream'
-      })
-    }
-  ]
-})
+const formatChatTime = (t) => t ? String(t).slice(11, 16) || '19:00' : '19:00'
+const formatChatDateTime = (t) => 'Hari ini, 19:00'
 
-// Realtime Live Chat State
-const {
-  messages,
-  isConnected,
-  isSubscribed,
-  isLoading: isChatLoading,
-  isSending,
-  currentSenderName,
-  isLoggedIn,
-  cooldownRemaining,
-  chatError,
-  initNickname,
-  fetchMessages,
-  subscribeToChat,
-  unsubscribe: unsubscribeLiveChat,
-  sendMessage: sendLiveChatMessage,
-  formatChatTime,
-  formatChatDateTime
-} = useAppwriteLiveChat()
+const sendLiveChatMessage = (text) => {
+  if (!text || !text.trim()) return { success: false }
+  const newMsg = {
+    id: Date.now(),
+    user_name: user.value.name,
+    user_avatar: user.value.prefs.avatar,
+    time: '19:06',
+    message: text.trim(),
+    is_admin: true
+  }
+  messages.value.push(newMsg)
+  return { success: true, message: newMsg }
+}
 
-const { user, isAdmin, isPremium } = useAppwriteAuth()
+const setlists = ref([
+  {
+    $id: 'setlist-1',
+    id: 1,
+    title_id: 'Cara Meminum Ramune',
+    title_jp: 'Ramune no Nomikata',
+    image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
+  }
+])
+
+const appwriteShows = ref([
+  {
+    $id: 'show-1',
+    id: 1,
+    setlist_id: 'setlist-1',
+    date: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
+    time: '19:00',
+    description: 'Pertunjukan spesial penuh energi Ramune no Nomikata.',
+    lineup: 'Freya Jayawardana, Angelina Christy, Shania Gracia, Marsha Lenathea, Feni Fitriyanti, Gita Sekar',
+    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
+  }
+])
 
 const chatContainerRef = ref<HTMLDivElement | null>(null)
 const chatInput = ref('')
@@ -105,23 +146,14 @@ watch(
   }
 )
 
-// Hubungkan ke data pertunjukan & setlist dari database Appwrite
-const { shows: appwriteShows, fetchShows } = useAppwriteShow()
-const { setlists, fetchSetlists } = useAppwriteSetlist()
-
-// Muat data show secara SSR & Hydration
-await useAsyncData('stream_active_show_data', async () => {
-  await Promise.all([fetchShows(), fetchSetlists()])
-  return true
-})
+// Hardcoded show data
 
 // Timer reaktif untuk mendeteksi perubahan status live setiap 30 detik
 const currentTime = ref(Date.now())
 let liveTimer: any = null
 
 onMounted(() => {
-  fetchShows()
-  fetchSetlists()
+  
   liveTimer = setInterval(() => {
     currentTime.value = Date.now()
   }, 30000)

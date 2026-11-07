@@ -1,16 +1,50 @@
 <script setup lang="ts">
 const router = useRouter()
-const {
-  user,
-  logout,
-  isLoading,
-  getSessions,
-  revokeSession,
-  revokeAllOtherSessions,
-  updateProfile,
-  updatePassword,
-  syncGoogleProfilePicture
-} = useAppwriteAuth()
+const user = ref({
+  $id: 'user-admin',
+  name: 'Admin Theater Idol',
+  email: 'admin@theater-idol.web.id',
+  labels: ['admin'],
+  prefs: {
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=JktRuby&backgroundColor=d61515',
+    bio: 'Administrator & Penggemar Theater Idol'
+  },
+  $createdAt: new Date().toISOString()
+})
+const isLoading = ref(false)
+const logout = async () => {
+  router.push('/login')
+}
+const getSessions = async () => [
+  {
+    $id: 'session-1',
+    current: true,
+    osName: 'Windows 11',
+    clientName: 'Chrome',
+    ip: '127.0.0.1',
+    countryName: 'Indonesia',
+    $createdAt: new Date().toISOString()
+  },
+  {
+    $id: 'session-2',
+    current: false,
+    osName: 'Android 14',
+    clientName: 'Mobile Chrome',
+    ip: '114.122.10.45',
+    countryName: 'Indonesia',
+    $createdAt: new Date(Date.now() - 86400000).toISOString()
+  }
+]
+const revokeSession = async () => ({ success: true })
+const revokeAllOtherSessions = async () => ({ success: true })
+const updateProfile = async (data) => {
+  if (data.name) user.value.name = data.name
+  if (data.bio) user.value.prefs.bio = data.bio
+  if (data.avatar) user.value.prefs.avatar = data.avatar
+  return { success: true }
+}
+const updatePassword = async () => ({ success: true })
+const syncGoogleProfilePicture = async () => user.value.prefs.avatar
 
 useSeoMeta({
   title: 'Profil Pengguna - Theater Idol',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { appName } = useAppName()
+const appName = ref('Theater Idol')
 
 useSeoMeta({
   title: 'Syarat & Ketentuan Layanan - Theater Idol',

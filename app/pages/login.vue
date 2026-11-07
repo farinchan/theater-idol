@@ -1,10 +1,26 @@
 <script setup lang="ts">
-import { account } from '~/appwrite'
 
 const route = useRoute()
 const router = useRouter()
-const { appName } = useAppName()
-const { user, login, register, loginWithGoogle, syncGoogleProfilePicture, checkSession, isLoading, authError } = useAppwriteAuth()
+const appName = ref('Theater Idol')
+const user = ref(null)
+const isLoading = ref(false)
+const authError = ref(null)
+const checkSession = async () => null
+const syncGoogleProfilePicture = async () => null
+
+const login = async (email) => {
+  router.push('/profile')
+  return { success: true }
+}
+const register = async (email, pass, name) => {
+  router.push('/profile')
+  return { success: true }
+}
+const loginWithGoogle = async () => {
+  router.push('/profile')
+  return { success: true }
+}
 
 useSeoMeta({
   title: 'Masuk / Daftar Akun - Theater Idol',
@@ -37,13 +53,7 @@ onMounted(async () => {
 
     try {
       // Jika Appwrite mengembalikan token via query parameter
-      if (userId && secret) {
-        try {
-          await account.createSession(userId, secret)
-        } catch (e: any) {
-          console.warn('[Google OAuth] createSession token note:', e?.message)
-        }
-      }
+      
 
       // Ambil dan pastikan data sesi aktif tersimpan
       const currentUser = await checkSession()

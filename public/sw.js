@@ -45,9 +45,7 @@ self.addEventListener('fetch', (event) => {
   // Only handle HTTP/HTTPS GET requests, ignore Appwrite/API/proxy calls from strict caching
   if (
     event.request.method !== 'GET' ||
-    !url.protocol.startsWith('http') ||
-    url.pathname.startsWith('/api/') ||
-    url.hostname.includes('appwrite')
+    !url.protocol.startsWith('http') 
   ) {
     return
   }

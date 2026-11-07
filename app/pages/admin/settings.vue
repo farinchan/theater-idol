@@ -1,14 +1,37 @@
 <script setup lang="ts">
-const { user, isAdmin, isLoading: isAuthLoading } = useAppwriteAuth()
-const {
-  settings,
-  isLoading: isSettingsLoading,
-  isSaving,
-  error: settingsError,
-  successNotice,
-  fetchSettings,
-  saveSettings
-} = useSiteSettings()
+const user = ref({
+  name: 'Admin Theater Idol',
+  email: 'admin@theater-idol.web.id',
+  labels: ['admin']
+})
+const isAdmin = computed(() => true)
+const isAuthLoading = ref(false)
+
+const settings = ref({
+  appName: 'Theater Idol',
+  isStreamEnabled: true,
+  isReplayEnabled: true,
+  isStreamRequireLogin: false,
+  isReplayRequireLogin: false,
+  isStreamRequirePremium: false,
+  isReplayRequirePremium: false,
+  streamNotice: 'Fitur Live Stream saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.',
+  replayNotice: 'Fitur Arsip Replay saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.',
+  whatsappChannel: 'https://whatsapp.com/channel/demo'
+})
+const isSettingsLoading = ref(false)
+const isSaving = ref(false)
+const settingsError = ref(null)
+const successNotice = ref(null)
+const fetchSettings = async () => {}
+const saveSettings = async (newVal) => {
+  isSaving.value = true
+  setTimeout(() => {
+    Object.assign(settings.value, newVal)
+    successNotice.value = 'Pengaturan berhasil disimpan!'
+    isSaving.value = false
+  }, 300)
+}
 
 useHead({
   title: 'Pengaturan Website - Admin'

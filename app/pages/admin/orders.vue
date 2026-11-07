@@ -1,17 +1,127 @@
 <script setup lang="ts">
-import type { OrderItem } from '~/composables/useAppwriteOrders'
+interface OrderItem {
+  id: string
+  paymentId?: string
+  userId?: string
+  userEmail?: string
+  userName?: string
+  planId: string
+  planName: string
+  durationDays: number
+  amount: number
+  method: string
+  paymentLinkUrl?: string
+  status: 'pending' | 'completed' | 'failed' | 'expired'
+  createdAt: string
+  paidAt?: string
+  expiresAt?: string
+  settledAt?: string
+}
 
-const { user, isAdmin, isLoading: isAuthLoading } = useAppwriteAuth()
-const {
-  orders,
-  isLoading: isOrdersLoading,
-  isActionLoading,
-  error: ordersError,
-  notice: ordersNotice,
-  fetchOrders,
-  updateOrderStatus,
-  stats
-} = useAppwriteOrders()
+const user = ref({
+  name: 'Admin Theater Idol',
+  email: 'admin@theater-idol.web.id',
+  labels: ['admin']
+})
+const isAdmin = computed(() => true)
+const isAuthLoading = ref(false)
+
+const orders = ref<OrderItem[]>([
+  {
+    id: 'PREM-1741234500000-1021',
+    paymentId: 'pay_demo_98231',
+    userId: 'user-1',
+    userName: 'Dimas Wicaksono',
+    userEmail: 'dimas@example.com',
+    planId: 'plan_14d',
+    planName: 'Member Premium 14 Hari',
+    durationDays: 14,
+    amount: 20000,
+    method: 'QRIS',
+    status: 'completed',
+    createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+    paidAt: new Date(Date.now() - 2 * 3600 * 1000 + 120000).toISOString(),
+    settledAt: new Date(Date.now() - 2 * 3600 * 1000 + 120000).toISOString()
+  },
+  {
+    id: 'PREM-1741234100000-4491',
+    paymentId: 'pay_demo_98230',
+    userId: 'user-2',
+    userName: 'Siti Rahma',
+    userEmail: 'siti@example.com',
+    planId: 'plan_30d',
+    planName: 'Member Premium 30 Hari',
+    durationDays: 30,
+    amount: 30000,
+    method: 'QRIS',
+    status: 'completed',
+    createdAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+    paidAt: new Date(Date.now() - 6 * 3600 * 1000 + 90000).toISOString(),
+    settledAt: new Date(Date.now() - 6 * 3600 * 1000 + 90000).toISOString()
+  },
+  {
+    id: 'PREM-1741233800000-8812',
+    paymentId: 'pay_demo_98229',
+    userId: 'user-3',
+    userName: 'Kevin Pratama',
+    userEmail: 'kevin@example.com',
+    planId: 'plan_7d',
+    planName: 'Member Premium 7 Hari',
+    durationDays: 7,
+    amount: 12000,
+    method: 'QRIS',
+    status: 'pending',
+    createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    paymentLinkUrl: 'https://example.com/mock-qris-payment'
+  },
+  {
+    id: 'PREM-1741230000000-5541',
+    paymentId: 'pay_demo_98220',
+    userId: 'user-4',
+    userName: 'Andi Saputra',
+    userEmail: 'andi@example.com',
+    planId: 'plan_14d',
+    planName: 'Member Premium 14 Hari',
+    durationDays: 14,
+    amount: 20000,
+    method: 'QRIS',
+    status: 'expired',
+    createdAt: new Date(Date.now() - 26 * 3600 * 1000).toISOString(),
+    expiresAt: new Date(Date.now() - 25 * 3600 * 1000).toISOString()
+  }
+])
+
+const isOrdersLoading = ref(false)
+const isActionLoading = ref(false)
+const ordersError = ref(null)
+const ordersNotice = ref(null)
+const fetchOrders = async () => {}
+
+const updateOrderStatus = async (orderId, newStatus) => {
+  const o = orders.value.find(i => i.id === orderId)
+  if (o) {
+    o.status = newStatus
+    if (newStatus === 'completed') {
+      o.paidAt = new Date().toISOString()
+      o.settledAt = new Date().toISOString()
+    }
+  }
+  ordersNotice.value = `Status pesanan #${orderId} berhasil diubah ke ${newStatus}.`
+  return { success: true }
+}
+
+const stats = computed(() => {
+  const list = orders.value
+  const total = list.length
+  const completed = list.filter(o => o.status === 'completed').length
+  const pending = list.filter(o => o.status === 'pending').length
+  const failedOrExpired = list.filter(o => o.status === 'failed' || o.status === 'expired').length
+  const totalRevenue = list
+    .filter(o => o.status === 'completed')
+    .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
+
+  return { total, completed, pending, failedOrExpired, totalRevenue }
+})
 
 useHead({
   title: 'Riwayat Pembayaran - Admin'

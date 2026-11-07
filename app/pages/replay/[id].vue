@@ -1,23 +1,93 @@
 <script setup lang="ts">
 const route = useRoute()
 const router = useRouter()
-const { appName } = useAppName()
-const { isReplayEnabled, isReplayRequireLogin, isReplayRequirePremium, replayNotice } = useSiteSettings()
-const { user, isPremium, isAdmin } = useAppwriteAuth()
-const showId = computed(() => route.params.id as string)
+const appName = ref('Theater Idol')
+const isReplayEnabled = ref(true)
+const isReplayRequireLogin = ref(false)
+const isReplayRequirePremium = ref(false)
+const replayNotice = ref('Fitur Replay sedang ditutup.')
 
-const { shows: appwriteShows, fetchShows, isLoading: isShowsLoading } = useAppwriteShow()
-const { setlists, fetchSetlists, isLoading: isSetlistsLoading } = useAppwriteSetlist()
+const user = ref({
+  $id: 'user-admin',
+  name: 'Admin Theater Idol',
+  email: 'admin@theater-idol.web.id',
+  prefs: { avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=JktRuby&backgroundColor=d61515' }
+})
+const isAdmin = computed(() => true)
+const isPremium = computed(() => true)
+
+const isShowsLoading = ref(false)
+const isSetlistsLoading = ref(false)
+
+const setlists = ref([
+  {
+    $id: 'setlist-1',
+    id: 1,
+    title_id: 'Cara Meminum Ramune',
+    title_jp: 'Ramune no Nomikata (ラムネの飲み方)',
+    image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
+  },
+  {
+    $id: 'setlist-2',
+    id: 2,
+    title_id: 'Aturan Anti Cinta',
+    title_jp: 'Renai Kinshi Jourei (恋愛禁止条例)',
+    image_url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80'
+  },
+  {
+    $id: 'setlist-3',
+    id: 3,
+    title_id: 'Tunas Dibalik Seragam',
+    title_jp: 'Seifuku no Me (制服の芽)',
+    image_url: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80'
+  },
+  {
+    $id: 'setlist-4',
+    id: 4,
+    title_id: 'Pajama Drive',
+    title_jp: 'Pajama Drive (パジャマドライブ)',
+    image_url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=800&auto=format&fit=crop&q=80'
+  }
+])
+
+const appwriteShows = ref([
+  {
+    $id: 'show-1',
+    id: 1,
+    setlist_id: 'setlist-1',
+    date: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+    time: '19:00',
+    description: 'Pertunjukan spesial penuh energi Ramune no Nomikata.',
+    lineup: 'Freya Jayawardana, Angelina Christy, Shania Gracia, Marsha Lenathea, Feni Fitriyanti, Gita Sekar',
+    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
+  },
+  {
+    $id: 'show-2',
+    id: 2,
+    setlist_id: 'setlist-2',
+    date: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
+    time: '14:00',
+    description: 'Setlist klasik Renai Kinshi Jourei dengan lagu-lagu nostalgia seperti Nagai Hikari dan Heart Gata Virus.',
+    lineup: 'Shania Gracia, Feni Fitriyanti, Gita Sekar, Indah Cahya, Adel Reva, Ella, Flora Shafiq, Oniel',
+    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
+  },
+  {
+    $id: 'show-3',
+    id: 3,
+    setlist_id: 'setlist-3',
+    date: new Date(Date.now() - 72 * 3600 * 1000).toISOString(),
+    time: '19:00',
+    description: 'Pertunjukan Tunas Dibalik Seragam yang berkesan dan penuh kejutan.',
+    lineup: 'Freya Jayawardana, Angelina Christy, Marsha Lenathea, Kathrina Irene, Jessi',
+    replay_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+  }
+])
 
 // Muat data show & setlist (SSR & Client Hydration)
-await useAsyncData(`replay_detail_${showId.value}`, async () => {
-  await Promise.all([fetchShows(), fetchSetlists()])
-  return true
-})
+// Hardcoded replay detail ready
 
 onMounted(() => {
-  fetchShows()
-  fetchSetlists()
+  
 })
 
 // Helper hitung timestamp dari date & time pertunjukan

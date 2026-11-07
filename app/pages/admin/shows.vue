@@ -1,39 +1,149 @@
 <script setup lang="ts">
-import type { SetlistItem } from '~/composables/useAppwriteSetlist'
-import type { ShowItem } from '~/composables/useAppwriteShow'
+interface SetlistItem {
+  $id?: string
+  id?: string | number
+  title_id: string
+  title_jp: string
+  image_url: string
+  file_id?: string
+  $createdAt?: string
+}
+
+interface ShowItem {
+  $id?: string
+  id?: string | number
+  setlist_id: string
+  setlist?: any
+  date: string
+  time: string
+  description?: string
+  lineup?: string
+  replay_url?: string
+  $createdAt?: string
+}
 
 const router = useRouter()
-const { user, isAdmin, isLoading: isAuthLoading, isInitialized } = useAppwriteAuth()
+const user = ref({
+  name: 'Admin Theater Idol',
+  email: 'admin@theater-idol.web.id',
+  labels: ['admin']
+})
+const isAdmin = computed(() => true)
+const isAuthLoading = ref(false)
+const isInitialized = ref(true)
 
-// Composable Setlist (Tab 1)
-const {
-  setlists,
-  isLoading: isSetlistsLoading,
-  isActionLoading: isSetlistActionLoading,
-  appwriteError: setlistAppwriteError,
-  appwriteNotice: setlistAppwriteNotice,
-  fetchSetlists,
-  createSetlist,
-  updateSetlist,
-  deleteSetlist,
-  dbId,
-  tableId,
-  bucketId
-} = useAppwriteSetlist()
+const setlists = ref<SetlistItem[]>([
+  {
+    $id: 'setlist-1',
+    id: 1,
+    title_id: 'Cara Meminum Ramune',
+    title_jp: 'Ramune no Nomikata (ラムネの飲み方)',
+    image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
+  },
+  {
+    $id: 'setlist-2',
+    id: 2,
+    title_id: 'Aturan Anti Cinta',
+    title_jp: 'Renai Kinshi Jourei (恋愛禁止条例)',
+    image_url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80'
+  },
+  {
+    $id: 'setlist-3',
+    id: 3,
+    title_id: 'Tunas Dibalik Seragam',
+    title_jp: 'Seifuku no Me (制服の芽)',
+    image_url: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80'
+  },
+  {
+    $id: 'setlist-4',
+    id: 4,
+    title_id: 'Pajama Drive',
+    title_jp: 'Pajama Drive (パジャマドライブ)',
+    image_url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=800&auto=format&fit=crop&q=80'
+  }
+])
+const isSetlistsLoading = ref(false)
+const isSetlistActionLoading = ref(false)
+const setlistAppwriteError = ref(null)
+const setlistAppwriteNotice = ref(null)
+const fetchSetlists = async () => {}
+const createSetlist = async (data) => {
+  const newItem = {
+    $id: `setlist-${Date.now()}`,
+    id: Date.now(),
+    title_id: data.title_id,
+    title_jp: data.title_jp,
+    image_url: data.image_url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
+  }
+  setlists.value.unshift(newItem)
+  return { success: true, item: newItem }
+}
+const updateSetlist = async (id, data) => {
+  const s = setlists.value.find(i => i.$id === id || String(i.id) === String(id))
+  if (s) {
+    s.title_id = data.title_id
+    s.title_jp = data.title_jp
+    if (data.image_url) s.image_url = data.image_url
+  }
+  return { success: true }
+}
+const deleteSetlist = async (id) => {
+  setlists.value = setlists.value.filter(i => i.$id !== id && String(i.id) !== String(id))
+  return { success: true }
+}
 
-// Composable Show (Tab 2)
-const {
-  shows,
-  isLoading: isShowsLoading,
-  isActionLoading: isShowActionLoading,
-  appwriteError: showAppwriteError,
-  appwriteNotice: showAppwriteNotice,
-  fetchShows,
-  createShow,
-  updateShow,
-  deleteShow,
-  showTableId
-} = useAppwriteShow()
+const shows = ref<ShowItem[]>([
+  {
+    $id: 'show-1',
+    id: 1,
+    setlist_id: 'setlist-1',
+    date: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
+    time: '19:00',
+    description: 'Pertunjukan spesial penuh energi Ramune no Nomikata.',
+    lineup: 'Freya Jayawardana, Angelina Christy, Shania Gracia, Marsha Lenathea, Feni Fitriyanti, Gita Sekar',
+    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
+  },
+  {
+    $id: 'show-2',
+    id: 2,
+    setlist_id: 'setlist-2',
+    date: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+    time: '14:00',
+    description: 'Setlist klasik Renai Kinshi Jourei.',
+    lineup: 'Shania Gracia, Feni Fitriyanti, Gita Sekar, Indah Cahya, Adel Reva, Ella',
+    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
+  }
+])
+const isShowsLoading = ref(false)
+const isShowActionLoading = ref(false)
+const showAppwriteError = ref(null)
+const showAppwriteNotice = ref(null)
+const fetchShows = async () => {}
+const createShow = async (data) => {
+  const newItem = {
+    $id: `show-${Date.now()}`,
+    id: Date.now(),
+    setlist_id: data.setlist_id,
+    date: data.date,
+    time: data.time,
+    description: data.description,
+    lineup: data.lineup,
+    replay_url: data.replay_url
+  }
+  shows.value.unshift(newItem)
+  return { success: true, item: newItem }
+}
+const updateShow = async (id, data) => {
+  const s = shows.value.find(i => i.$id === id || String(i.id) === String(id))
+  if (s) {
+    Object.assign(s, data)
+  }
+  return { success: true }
+}
+const deleteShow = async (id) => {
+  shows.value = shows.value.filter(i => i.$id !== id && String(i.id) !== String(id))
+  return { success: true }
+}
 
 // Tab Navigation: Tab 1 = Setlist, Tab 2 = Jadwal Pertunjukan
 const activeTab = ref<'setlists' | 'shows'>('setlists')

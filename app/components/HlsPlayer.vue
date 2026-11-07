@@ -42,37 +42,16 @@ const qualityLevels = ref<QualityLevel[]>([])
 const selectedQuality = ref<number>(-1) // -1 = Auto
 const activeResolution = ref<string>('Auto')
 
+// Client-side pure stream player
 let hlsInstance: any = null
 let controlsTimeout: ReturnType<typeof setTimeout> | null = null
-
-const config = useRuntimeConfig()
-
-// Helper untuk mendeteksi apakah stream URL memerlukan server proxy (mengatasi blokir CORS / 403 Forbidden)
-const resolveStreamUrl = (rawUrl: string): string => {
-  if (!rawUrl) return ''
-  const trimmed = rawUrl.trim()
-
-  if (trimmed.startsWith('/')) {
-    return trimmed
-  }
-
-  // Jika proxy aktif di pengaturan (STREAM_USE_PROXY di .env), lewatkan melalui endpoint proxy server
-  const isProxyDisabled =
-    config.public.streamUseProxy === false || (config.public as any).streamUseProxy === 'false'
-
-  if (!isProxyDisabled) {
-    return `/api/stream/proxy?url=${encodeURIComponent(trimmed)}`
-  }
-
-  return trimmed
-}
 
 // Compute current effective URL
 const effectiveSrc = computed(() => {
   if (activeSrc.value && activeSrc.value.trim() !== '') {
-    return resolveStreamUrl(activeSrc.value.trim())
+    return activeSrc.value.trim()
   }
-  return ''
+  return DEMO_STREAM_URL
 })
 
 // Watch prop src changes
@@ -159,12 +138,7 @@ const initPlayer = async () => {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               // Jika terjadi network/CORS error pada URL langsung eksternal, alihkan ke proxy
-              if (!url.startsWith('/api/stream') && activeSrc.value && !activeSrc.value.startsWith('/api/stream')) {
-                console.warn('[HlsPlayer] Terjadi Network/CORS error. Beralih otomatis ke server proxy...')
-                activeSrc.value = `/api/stream/proxy?url=${encodeURIComponent(activeSrc.value)}`
-                initPlayer()
-                return
-              }
+              /* network error fallback */
               console.error('Fatal network error encountered, trying to recover...')
               hlsInstance.startLoad()
               break
@@ -419,15 +393,7 @@ const applyCustomUrl = () => {
   initPlayer()
 }
 
-const useProxyStream = () => {
-  if (activeSrc.value && !activeSrc.value.startsWith('/api/stream')) {
-    activeSrc.value = `/api/stream/proxy?url=${encodeURIComponent(activeSrc.value)}`
-  } else {
-    activeSrc.value = '/api/stream/live.m3u8'
-  }
-  isUsingDemo.value = false
-  initPlayer()
-}
+const useProxyStream = () => { initPlayer() }
 
 // Activity & Inactivity timers for controls auto-hide
 const triggerControlsActivity = () => {
@@ -605,21 +571,7 @@ onBeforeUnmount(() => {
           <p class="text-xs text-neutral-300 mt-1 leading-relaxed">{{ errorMessage }}</p>
         </div>
         <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
-          <button
-            class="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-            @click.stop="reloadStream"
-          >
-            <UIcon name="i-lucide-refresh-cw" class="w-3.5 h-3.5" />
-            <span>Coba Lagi</span>
-          </button>
-          <button
-            v-if="!effectiveSrc.startsWith('/api/stream')"
-            class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-600/30"
-            @click.stop="useProxyStream"
-          >
-            <UIcon name="i-lucide-shield-check" class="w-3.5 h-3.5" />
-            <span>Putar via Server Proxy</span>
-          </button>
+          
           <button
             class="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium transition cursor-pointer"
             @click.stop="useDemoStream"

@@ -1,21 +1,167 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useAppwriteAdminUsers, type AdminUserItem } from '~/composables/useAppwriteAdminUsers'
+interface AdminUserItem {
+  $id: string
+  $createdAt: string
+  $updatedAt: string
+  name: string
+  email: string
+  phone?: string
+  status: boolean
+  labels: string[]
+  emailVerification: boolean
+  phoneVerification: boolean
+  mfa: boolean
+  prefs: Record<string, any>
+  accessedAt?: string
+  registration?: string
+  isAdmin: boolean
+  premium: { isActive: boolean; expDate: Date | null; isLifetime: boolean; formatted: string }
+  avatarUrl: string
+}
 
-const { user, isAdmin, isLoading: isAuthLoading } = useAppwriteAuth()
-const {
-  users,
-  total,
-  isLoading,
-  isActionLoading,
-  error,
-  notice,
-  fetchUsers,
-  createUser,
-  updateUser,
-  deleteUser,
-  stats
-} = useAppwriteAdminUsers()
+const user = ref({
+  name: 'Admin Theater Idol',
+  email: 'admin@theater-idol.web.id',
+  labels: ['admin']
+})
+const isAdmin = computed(() => true)
+const isAuthLoading = ref(false)
+
+const users = ref<AdminUserItem[]>([
+  {
+    $id: 'usr_admin_01',
+    $createdAt: new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString(),
+    $updatedAt: new Date().toISOString(),
+    name: 'Admin Utama Teater',
+    email: 'admin@theater-idol.web.id',
+    status: true,
+    labels: ['admin'],
+    emailVerification: true,
+    phoneVerification: true,
+    mfa: false,
+    prefs: {
+      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=AdminUtama&backgroundColor=d61515',
+      premium: 'lifetime'
+    },
+    isAdmin: true,
+    premium: { isActive: true, expDate: null, isLifetime: true, formatted: 'Permanen / Lifetime' },
+    avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=AdminUtama&backgroundColor=d61515'
+  },
+  {
+    $id: 'usr_member_02',
+    $createdAt: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
+    $updatedAt: new Date().toISOString(),
+    name: 'Budi Santoso (VIP)',
+    email: 'budi.santoso@gmail.com',
+    status: true,
+    labels: [],
+    emailVerification: true,
+    phoneVerification: false,
+    mfa: false,
+    prefs: {
+      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=BudiVIP&backgroundColor=0284c7',
+      premium: new Date(Date.now() + 15 * 24 * 3600 * 1000).toISOString()
+    },
+    isAdmin: false,
+    premium: {
+      isActive: true,
+      expDate: new Date(Date.now() + 15 * 24 * 3600 * 1000),
+      isLifetime: false,
+      formatted: '15 Hari Lagi'
+    },
+    avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=BudiVIP&backgroundColor=0284c7'
+  },
+  {
+    $id: 'usr_member_03',
+    $createdAt: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
+    $updatedAt: new Date().toISOString(),
+    name: 'Citra Dewi',
+    email: 'citra.dewi@yahoo.com',
+    status: true,
+    labels: [],
+    emailVerification: true,
+    phoneVerification: false,
+    mfa: false,
+    prefs: {
+      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=CitraDewi&backgroundColor=f43f5e'
+    },
+    isAdmin: false,
+    premium: { isActive: false, expDate: null, isLifetime: false, formatted: 'Free Member' },
+    avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=CitraDewi&backgroundColor=f43f5e'
+  }
+])
+
+const total = computed(() => users.value.length)
+const isLoading = ref(false)
+const isActionLoading = ref(false)
+const error = ref(null)
+const notice = ref(null)
+const fetchUsers = async () => {}
+
+const createUser = async (payload) => {
+  const isAdm = payload.role === 'admin'
+  const newItem = {
+    $id: `usr_${Date.now()}`,
+    $createdAt: new Date().toISOString(),
+    $updatedAt: new Date().toISOString(),
+    name: payload.name.trim(),
+    email: payload.email.trim(),
+    status: payload.status !== false,
+    labels: isAdm ? ['admin'] : [],
+    emailVerification: true,
+    phoneVerification: false,
+    mfa: false,
+    prefs: {
+      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(payload.name)}&backgroundColor=0284c7`,
+      premium: payload.isLifetime ? 'lifetime' : undefined
+    },
+    isAdmin: isAdm,
+    premium: payload.isLifetime
+      ? { isActive: true, expDate: null, isLifetime: true, formatted: 'Permanen / Lifetime' }
+      : { isActive: false, expDate: null, isLifetime: false, formatted: 'Free Member' },
+    avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(payload.name)}&backgroundColor=0284c7`
+  }
+  users.value.unshift(newItem)
+  notice.value = `Pengguna ${newItem.name} berhasil ditambahkan.`
+  return { success: true, user: newItem }
+}
+
+const updateUser = async (userId, payload) => {
+  const idx = users.value.findIndex(u => u.$id === userId)
+  if (idx !== -1) {
+    const current = users.value[idx]
+    if (payload.name) current.name = payload.name
+    if (payload.email) current.email = payload.email
+    if (payload.status !== undefined) current.status = payload.status
+    if (payload.labels) {
+      current.labels = payload.labels
+      current.isAdmin = payload.labels.includes('admin')
+    }
+    if (payload.prefs) {
+      current.prefs = { ...current.prefs, ...payload.prefs }
+      current.premium = { isActive: true, expDate: null, isLifetime: true, formatted: 'Aktif' }
+    }
+    notice.value = `Data pengguna ${current.name} berhasil diperbarui.`
+  }
+  return { success: true }
+}
+
+const deleteUser = async (userId) => {
+  users.value = users.value.filter(u => u.$id !== userId)
+  notice.value = 'Pengguna berhasil dihapus.'
+  return { success: true }
+}
+
+const stats = computed(() => {
+  const list = users.value
+  return {
+    total: list.length,
+    adminCount: list.filter(u => u.isAdmin).length,
+    activePremiumCount: list.filter(u => u.premium.isActive).length,
+    blockedCount: list.filter(u => !u.status).length
+  }
+})
 
 useHead({
   title: 'Management Pengguna - Admin'
