@@ -1,68 +1,9 @@
 <script setup lang="ts">
-const isShowsLoading = ref(false)
-const setlists = ref([
-  {
-    $id: 'setlist-1',
-    id: 1,
-    title_id: 'Cara Meminum Ramune',
-    title_jp: 'Ramune no Nomikata (ラムネの飲み方)',
-    image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-2',
-    id: 2,
-    title_id: 'Aturan Anti Cinta',
-    title_jp: 'Renai Kinshi Jourei (恋愛禁止条例)',
-    image_url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-3',
-    id: 3,
-    title_id: 'Tunas Dibalik Seragam',
-    title_jp: 'Seifuku no Me (制服の芽)',
-    image_url: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-4',
-    id: 4,
-    title_id: 'Pajama Drive',
-    title_jp: 'Pajama Drive (パジャマドライブ)',
-    image_url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=800&auto=format&fit=crop&q=80'
-  }
-])
+import { showService } from '~/services/show-service'
+import type { ShowListItem } from '~/types/show'
 
-const appwriteShows = ref([
-  {
-    $id: 'show-1',
-    id: 1,
-    setlist_id: 'setlist-1',
-    date: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
-    time: '19:00',
-    description: 'Pertunjukan penuh energi dan kesegaran masa muda khas setlist Ramune no Nomikata.',
-    lineup: 'Freya Jayawardana, Angelina Christy, Shania Gracia, Marsha Lenathea, Feni Fitriyanti, Gita Sekar',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  },
-  {
-    $id: 'show-2',
-    id: 2,
-    setlist_id: 'setlist-2',
-    date: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-    time: '14:00',
-    description: 'Setlist klasik Renai Kinshi Jourei dengan lagu-lagu nostalgia seperti Nagai Hikari dan Heart Gata Virus.',
-    lineup: 'Shania Gracia, Feni Fitriyanti, Gita Sekar, Indah Cahya, Adel Reva, Ella, Flora Shafiq, Oniel',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  },
-  {
-    $id: 'show-3',
-    id: 3,
-    setlist_id: 'setlist-3',
-    date: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-    time: '19:00',
-    description: 'Pertunjukan Tunas Dibalik Seragam yang berkesan dan penuh kejutan.',
-    lineup: 'Freya Jayawardana, Angelina Christy, Marsha Lenathea, Kathrina Irene, Jessi',
-    replay_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-  }
-])
+const isShowsLoading = ref(true)
+const shows = ref<ShowListItem[]>([])
 
 useSeoMeta({
   title: 'Jadwal Show Theater Idol Terupdate & Terlengkap',
@@ -92,15 +33,25 @@ useHead({
   ]
 })
 
-// Ambil data jadwal show & setlist dari database tablesDB (SSR & Client Hydration)
-// Hardcoded jadwal data ready
+const fetchSchedules = async () => {
+  isShowsLoading.value = true
+  try {
+    const res = await showService.getSchedule(1, 50)
+    if (res.data) {
+      shows.value = res.data
+    }
+  } catch {
+    shows.value = []
+  } finally {
+    isShowsLoading.value = false
+  }
+}
 
 onMounted(() => {
-  
+  fetchSchedules()
 })
 
 // Helper formatters untuk penanganan ISO Datetime dan lokal Indonesia
-
 const getFullFormattedDate = (dateVal?: string): string => {
   if (!dateVal) return '-'
   try {
@@ -129,116 +80,21 @@ const getFormattedTime = (timeVal?: string, dateVal?: string): string => {
   return timeVal || '19:00 WIB'
 }
 
-const defaultSchedules = [
-  {
-    id: 1,
-    title: 'Cara Meminum Ramune',
-    originalTitle: 'Ramune no Nomikata',
-    category: 'Regular Show',
-    date: '2026-10-03T12:00:00.000Z',
-    time: '19:00 WIB',
-    description: 'Pertunjukan penuh energi dan kesegaran masa muda khas setlist Ramune no Nomikata dengan 16 lagu ceria dan emosional.',
-    lineup: [
-      'Freya Jayawardana', 'Angelina Christy', 'Shania Gracia', 'Azizi Asadel',
-      'Marsha Lenathea', 'Feni Fitriyanti', 'Gita Sekar', 'Mutiara Azzahra',
-      'Kathrina Irene', 'Jessi', 'Lulu Salsabila', 'Indah Cahya',
-      'Adel Reva', 'Ella', 'Flora Shafiq', 'Oniel'
-    ],
-    poster: ''
-  },
-  {
-    id: 2,
-    title: 'Aturan Anti Cinta',
-    originalTitle: 'Renai Kinshi Jourei',
-    category: 'Regular Show',
-    date: '2026-10-04T07:00:00.000Z',
-    time: '14:00 WIB',
-    description: 'Setlist legendaris yang membawakan lagu-lagu nostalgia seperti Nagai Hikari, Heart Gata Virus, dan Renai Kinshi Jourei.',
-    lineup: [
-      'Gita Sekar', 'Mutiara Azzahra', 'Marsha Lenathea', 'Feni Fitriyanti',
-      'Kathrina Irene', 'Jessi', 'Lulu Salsabila', 'Indah Cahya',
-      'Freya Jayawardana', 'Christy', 'Gracia', 'Flora',
-      'Oniel', 'Ella', 'Adel', 'Amanda'
-    ],
-    poster: ''
-  },
-  {
-    id: 3,
-    title: 'Aturan Anti Cinta',
-    originalTitle: 'Renai Kinshi Jourei',
-    category: 'Regular Show',
-    date: '2026-10-04T12:00:00.000Z',
-    time: '19:00 WIB',
-    description: 'Pertunjukan malam penuh semangat dengan antusiasme chant penonton di Teater.',
-    lineup: [
-      'Freya Jayawardana', 'Christy', 'Gracia', 'Zee',
-      'Marsha', 'Feni', 'Gita', 'Muthe',
-      'Kathrina', 'Lulu', 'Indah', 'Ella',
-      'Adel', 'Flora', 'Oniel', 'Jessi'
-    ],
-    poster: ''
-  }
-]
-
-// Helper untuk menghitung timestamp pertunjukan dari tanggal dan jam
-const getShowTimestamp = (dateVal?: string, timeVal?: string): number => {
-  if (!dateVal) return 0
-  try {
-    const d = new Date(dateVal)
-    if (!isNaN(d.getTime())) {
-      if (timeVal) {
-        const match = timeVal.match(/(\d{1,2}):(\d{2})/)
-        if (match) {
-          const year = d.getFullYear()
-          const month = d.getMonth()
-          const date = d.getDate()
-          const hours = parseInt(match[1], 10)
-          const minutes = parseInt(match[2], 10)
-          return new Date(year, month, date, hours, minutes, 0).getTime()
-        }
-      }
-      return d.getTime()
-    }
-  } catch {}
-  return 0
-}
-
-// Gabungkan data jadwal show dari database tablesDB dan filter hanya yang akan datang (mendatang)
 const allSchedules = computed(() => {
-  const now = Date.now()
-
-  if (appwriteShows.value.length > 0) {
-    // Filter show dari tablesDB yang tanggalnya mendatang (>= now)
-    const upcomingShows = appwriteShows.value
-      .filter(s => {
-        const ts = getShowTimestamp(s.date, s.time)
-        return ts >= now
-      })
-      .sort((a, b) => getShowTimestamp(a.date, a.time) - getShowTimestamp(b.date, b.time))
-
-    if (upcomingShows.length > 0) {
-      return upcomingShows.map(s => {
-        const related = setlists.value.find(set => set.$id === s.setlist_id || String(set.id) === String(s.setlist_id))
-        const lineupList = s.lineup ? s.lineup.split(',').map(m => m.trim()).filter(Boolean) : []
-        return {
-          id: s.$id || s.id,
-          title: related?.title_id || 'Pertunjukan Teater',
-          originalTitle: related?.title_jp || '',
-          category: 'Regular Show',
-          date: s.date,
-          time: getFormattedTime(s.time, s.date),
-          description: s.description || (related ? `Pertunjukan setlist ${related.title_id}` : 'Pertunjukan teater mendatang.'),
-          lineup: lineupList.length > 0 ? lineupList : ['Lineup menyusul'],
-          poster: related?.image_url || ''
-        }
-      })
+  return shows.value.map(s => {
+    const lineupList = s.lineup ? s.lineup.split(',').map(m => m.trim()).filter(Boolean) : []
+    return {
+      id: s.id,
+      title: s.setlist?.title_id || 'Pertunjukan Teater',
+      originalTitle: s.setlist?.title_jp || '',
+      category: 'Regular Show',
+      date: s.date,
+      time: getFormattedTime(s.time, s.date),
+      description: s.description || (s.setlist ? `Pertunjukan setlist ${s.setlist.title_id}` : 'Pertunjukan teater mendatang.'),
+      lineup: lineupList.length > 0 ? lineupList : ['Lineup menyusul'],
+      poster: resolveMediaUrl(s.setlist?.image)
     }
-  }
-
-  // Fallback jadwal default yang berstatus mendatang jika database belum memiliki data mendatang
-  return defaultSchedules
-    .filter(s => getShowTimestamp(s.date, s.time) >= now)
-    .sort((a, b) => getShowTimestamp(a.date, a.time) - getShowTimestamp(b.date, b.time))
+  })
 })
 </script>
 

@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useAuth } from '~/composables/useAuth'
+import { adminUserService } from '~/services/admin-user-service'
+import { authService } from '~/services/auth-service'
+
 interface AdminUserItem {
   $id: string
   $createdAt: string
@@ -20,137 +24,108 @@ interface AdminUserItem {
   avatarUrl: string
 }
 
-const user = ref({
-  name: 'Admin Theater Idol',
-  email: 'admin@theater-idol.web.id',
-  labels: ['admin']
-})
-const isAdmin = computed(() => true)
+const router = useRouter()
+const { state } = useAuth()
+const user = computed(() => state.user)
+const isAdmin = computed(() => state.isAdmin)
 const isAuthLoading = ref(false)
 
-const users = ref<AdminUserItem[]>([
-  {
-    $id: 'usr_admin_01',
-    $createdAt: new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString(),
-    $updatedAt: new Date().toISOString(),
-    name: 'Admin Utama Teater',
-    email: 'admin@theater-idol.web.id',
-    status: true,
-    labels: ['admin'],
-    emailVerification: true,
-    phoneVerification: true,
-    mfa: false,
-    prefs: {
-      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=AdminUtama&backgroundColor=d61515',
-      premium: 'lifetime'
-    },
-    isAdmin: true,
-    premium: { isActive: true, expDate: null, isLifetime: true, formatted: 'Permanen / Lifetime' },
-    avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=AdminUtama&backgroundColor=d61515'
-  },
-  {
-    $id: 'usr_member_02',
-    $createdAt: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
-    $updatedAt: new Date().toISOString(),
-    name: 'Budi Santoso (VIP)',
-    email: 'budi.santoso@gmail.com',
-    status: true,
-    labels: [],
-    emailVerification: true,
-    phoneVerification: false,
-    mfa: false,
-    prefs: {
-      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=BudiVIP&backgroundColor=0284c7',
-      premium: new Date(Date.now() + 15 * 24 * 3600 * 1000).toISOString()
-    },
-    isAdmin: false,
-    premium: {
-      isActive: true,
-      expDate: new Date(Date.now() + 15 * 24 * 3600 * 1000),
-      isLifetime: false,
-      formatted: '15 Hari Lagi'
-    },
-    avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=BudiVIP&backgroundColor=0284c7'
-  },
-  {
-    $id: 'usr_member_03',
-    $createdAt: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
-    $updatedAt: new Date().toISOString(),
-    name: 'Citra Dewi',
-    email: 'citra.dewi@yahoo.com',
-    status: true,
-    labels: [],
-    emailVerification: true,
-    phoneVerification: false,
-    mfa: false,
-    prefs: {
-      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=CitraDewi&backgroundColor=f43f5e'
-    },
-    isAdmin: false,
-    premium: { isActive: false, expDate: null, isLifetime: false, formatted: 'Free Member' },
-    avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=CitraDewi&backgroundColor=f43f5e'
-  }
-])
-
+const users = ref<AdminUserItem[]>([])
 const total = computed(() => users.value.length)
 const isLoading = ref(false)
 const isActionLoading = ref(false)
-const error = ref(null)
-const notice = ref(null)
-const fetchUsers = async () => {}
+const error = ref<string | null>(null)
+const notice = ref<string | null>(null)
 
-const createUser = async (payload) => {
-  const isAdm = payload.role === 'admin'
-  const newItem = {
-    $id: `usr_${Date.now()}`,
-    $createdAt: new Date().toISOString(),
-    $updatedAt: new Date().toISOString(),
-    name: payload.name.trim(),
-    email: payload.email.trim(),
-    status: payload.status !== false,
-    labels: isAdm ? ['admin'] : [],
-    emailVerification: true,
-    phoneVerification: false,
-    mfa: false,
-    prefs: {
-      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(payload.name)}&backgroundColor=0284c7`,
-      premium: payload.isLifetime ? 'lifetime' : undefined
-    },
-    isAdmin: isAdm,
-    premium: payload.isLifetime
-      ? { isActive: true, expDate: null, isLifetime: true, formatted: 'Permanen / Lifetime' }
-      : { isActive: false, expDate: null, isLifetime: false, formatted: 'Free Member' },
-    avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(payload.name)}&backgroundColor=0284c7`
+const fetchUsers = async () => {
+  isLoading.value = true
+  error.value = null
+  try {
+    const res = await adminUserService.getAll(1, 100)
+    if (res.data && Array.isArray(res.data)) {
+      users.value = res.data.map(u => {
+        const isMember = Boolean(u.is_member)
+        return {
+          $id: String(u.id),
+          $createdAt: u.created_at || new Date().toISOString(),
+          $updatedAt: u.updated_at || new Date().toISOString(),
+          name: u.name,
+          email: u.email,
+          phone: u.phone || undefined,
+          status: u.is_active ?? true,
+          labels: u.role === 'admin' ? ['admin'] : [],
+          emailVerification: true,
+          phoneVerification: Boolean(u.phone),
+          mfa: Boolean(u.is_2fa_enabled),
+          prefs: { avatar: resolveMediaUrl(u.photo) },
+          isAdmin: u.role === 'admin',
+          premium: {
+            isActive: isMember,
+            expDate: u.membership_expires_at ? new Date(u.membership_expires_at) : null,
+            isLifetime: false,
+            formatted: isMember ? (u.membership_expires_at ? formatIndoDate(u.membership_expires_at) : 'Aktif') : 'Free Member'
+          },
+          avatarUrl: resolveMediaUrl(u.photo) || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.name)}&backgroundColor=0284c7`
+        }
+      })
+    }
+  } catch (err: any) {
+    error.value = err?.message || 'Gagal memuat pengguna'
+  } finally {
+    isLoading.value = false
   }
-  users.value.unshift(newItem)
-  notice.value = `Pengguna ${newItem.name} berhasil ditambahkan.`
-  return { success: true, user: newItem }
 }
 
-const updateUser = async (userId, payload) => {
-  const idx = users.value.findIndex(u => u.$id === userId)
-  if (idx !== -1) {
-    const current = users.value[idx]
-    if (payload.name) current.name = payload.name
-    if (payload.email) current.email = payload.email
-    if (payload.status !== undefined) current.status = payload.status
-    if (payload.labels) {
-      current.labels = payload.labels
-      current.isAdmin = payload.labels.includes('admin')
-    }
-    if (payload.prefs) {
-      current.prefs = { ...current.prefs, ...payload.prefs }
-      current.premium = { isActive: true, expDate: null, isLifetime: true, formatted: 'Aktif' }
-    }
-    notice.value = `Data pengguna ${current.name} berhasil diperbarui.`
+const createUser = async (payload: any) => {
+  isActionLoading.value = true
+  try {
+    await authService.register({
+      name: payload.name.trim(),
+      email: payload.email.trim(),
+      password: payload.password.trim()
+    })
+    notice.value = `Pengguna ${payload.name} berhasil ditambahkan.`
+    await fetchUsers()
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Gagal menambahkan pengguna' }
+  } finally {
+    isActionLoading.value = false
   }
-  return { success: true }
 }
 
-const deleteUser = async (userId) => {
-  users.value = users.value.filter(u => u.$id !== userId)
-  notice.value = 'Pengguna berhasil dihapus.'
-  return { success: true }
+const updateUser = async (userId: string, payload: any) => {
+  isActionLoading.value = true
+  try {
+    await adminUserService.update(Number(userId), {
+      name: payload.name,
+      email: payload.email,
+      phone: payload.phone,
+      password: payload.password || undefined,
+      is_2fa_enabled: payload.mfa !== undefined ? payload.mfa : undefined
+    })
+    notice.value = `Data pengguna berhasil diperbarui.`
+    await fetchUsers()
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Gagal memperbarui pengguna' }
+  } finally {
+    isActionLoading.value = false
+  }
+}
+
+const deleteUser = async (userId: string) => {
+  isActionLoading.value = true
+  try {
+    await adminUserService.delete(Number(userId))
+    notice.value = 'Pengguna berhasil dihapus.'
+    await fetchUsers()
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Gagal menghapus pengguna' }
+  } finally {
+    isActionLoading.value = false
+  }
 }
 
 const stats = computed(() => {
@@ -168,6 +143,10 @@ useHead({
 })
 
 onMounted(async () => {
+  if (import.meta.client && (!user.value || !isAdmin.value)) {
+    router.replace('/')
+    return
+  }
   await fetchUsers()
 })
 

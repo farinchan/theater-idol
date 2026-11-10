@@ -1,115 +1,24 @@
 <script setup lang="ts">
+import { useAuth } from '~/composables/useAuth'
+import { showService } from '~/services/show-service'
+import type { Show, ShowListItem } from '~/types/show'
+
 const route = useRoute()
-const router = useRouter()
-const appName = ref('Theater Idol')
+const showId = computed(() => route.params.id as string)
+
+const { state } = useAuth()
+const user = computed(() => state.user)
+const isAdmin = computed(() => state.isAdmin)
+const isPremium = computed(() => state.isPremium)
+
 const isReplayEnabled = ref(true)
 const isReplayRequireLogin = ref(false)
 const isReplayRequirePremium = ref(false)
 const replayNotice = ref('Fitur Replay sedang ditutup.')
 
-const user = ref({
-  $id: 'user-admin',
-  name: 'Admin Theater Idol',
-  email: 'admin@theater-idol.web.id',
-  prefs: { avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=JktRuby&backgroundColor=d61515' }
-})
-const isAdmin = computed(() => true)
-const isPremium = computed(() => true)
-
-const isShowsLoading = ref(false)
-const isSetlistsLoading = ref(false)
-
-const setlists = ref([
-  {
-    $id: 'setlist-1',
-    id: 1,
-    title_id: 'Cara Meminum Ramune',
-    title_jp: 'Ramune no Nomikata (ラムネの飲み方)',
-    image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-2',
-    id: 2,
-    title_id: 'Aturan Anti Cinta',
-    title_jp: 'Renai Kinshi Jourei (恋愛禁止条例)',
-    image_url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-3',
-    id: 3,
-    title_id: 'Tunas Dibalik Seragam',
-    title_jp: 'Seifuku no Me (制服の芽)',
-    image_url: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-4',
-    id: 4,
-    title_id: 'Pajama Drive',
-    title_jp: 'Pajama Drive (パジャマドライブ)',
-    image_url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=800&auto=format&fit=crop&q=80'
-  }
-])
-
-const appwriteShows = ref([
-  {
-    $id: 'show-1',
-    id: 1,
-    setlist_id: 'setlist-1',
-    date: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-    time: '19:00',
-    description: 'Pertunjukan spesial penuh energi Ramune no Nomikata.',
-    lineup: 'Freya Jayawardana, Angelina Christy, Shania Gracia, Marsha Lenathea, Feni Fitriyanti, Gita Sekar',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  },
-  {
-    $id: 'show-2',
-    id: 2,
-    setlist_id: 'setlist-2',
-    date: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-    time: '14:00',
-    description: 'Setlist klasik Renai Kinshi Jourei dengan lagu-lagu nostalgia seperti Nagai Hikari dan Heart Gata Virus.',
-    lineup: 'Shania Gracia, Feni Fitriyanti, Gita Sekar, Indah Cahya, Adel Reva, Ella, Flora Shafiq, Oniel',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  },
-  {
-    $id: 'show-3',
-    id: 3,
-    setlist_id: 'setlist-3',
-    date: new Date(Date.now() - 72 * 3600 * 1000).toISOString(),
-    time: '19:00',
-    description: 'Pertunjukan Tunas Dibalik Seragam yang berkesan dan penuh kejutan.',
-    lineup: 'Freya Jayawardana, Angelina Christy, Marsha Lenathea, Kathrina Irene, Jessi',
-    replay_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-  }
-])
-
-// Muat data show & setlist (SSR & Client Hydration)
-// Hardcoded replay detail ready
-
-onMounted(() => {
-  
-})
-
-// Helper hitung timestamp dari date & time pertunjukan
-const getShowTimestamp = (dateVal?: string, timeVal?: string): number => {
-  if (!dateVal) return 0
-  try {
-    const d = new Date(dateVal)
-    if (!isNaN(d.getTime())) {
-      let hours = 19
-      let minutes = 0
-      if (timeVal) {
-        const match = timeVal.match(/(\d{1,2}):(\d{2})/)
-        if (match) {
-          hours = parseInt(match[1], 10)
-          minutes = parseInt(match[2], 10)
-        }
-      }
-      return new Date(d.getFullYear(), d.getMonth(), d.getDate(), hours, minutes, 0).getTime()
-    }
-  } catch {}
-  return 0
-}
+const isShowsLoading = ref(true)
+const currentShow = ref<Show | null>(null)
+const otherShows = ref<ShowListItem[]>([])
 
 // Format Tanggal Indonesia
 const formatIndonesianDate = (dateVal?: string): string => {
@@ -146,20 +55,55 @@ const formatIndonesianTime = (timeVal?: string, dateVal?: string): string => {
   return timeVal || '19:00 WIB'
 }
 
-// Show yang sedang diputar
-const currentShow = computed(() => {
-  return appwriteShows.value.find(
-    s => s.$id === showId.value || String(s.id) === showId.value
-  ) || null
+const loadShowDetail = async () => {
+  isShowsLoading.value = true
+  isReplayRequireLogin.value = false
+  isReplayRequirePremium.value = false
+  isReplayEnabled.value = true
+
+  try {
+    const [showRes, listRes] = await Promise.allSettled([
+      showService.getById(showId.value),
+      showService.getAll(1, 10)
+    ])
+
+    if (showRes.status === 'fulfilled' && showRes.value?.data) {
+      currentShow.value = showRes.value.data
+    } else if (showRes.status === 'rejected') {
+      currentShow.value = null
+      const err = showRes.reason
+      const status = err?.response?.status
+      const msg = err?.response?.data?.message || ''
+
+      if (status === 401) {
+        isReplayRequireLogin.value = true
+      } else if (status === 403) {
+        if (msg.includes('membership') || msg.includes('member')) {
+          isReplayRequirePremium.value = true
+        } else {
+          isReplayEnabled.value = false
+          replayNotice.value = msg || 'Fitur Replay sedang ditutup.'
+        }
+      }
+    }
+
+    if (listRes.status === 'fulfilled' && listRes.value?.data) {
+      otherShows.value = listRes.value.data
+    }
+  } finally {
+    isShowsLoading.value = false
+  }
+}
+
+watch(showId, () => {
+  loadShowDetail()
 })
 
-// Setlist terkait
-const relatedSetlist = computed(() => {
-  if (!currentShow.value) return null
-  return setlists.value.find(
-    s => s.$id === currentShow.value?.setlist_id || String(s.id) === String(currentShow.value?.setlist_id)
-  ) || null
+onMounted(() => {
+  loadShowDetail()
 })
+
+const relatedSetlist = computed(() => currentShow.value?.setlist || null)
 
 // Lineup member
 const lineupList = computed(() => {
@@ -183,7 +127,7 @@ const pageDescription = computed(() => {
 })
 
 const pagePoster = computed(() => {
-  return currentShow.value?.poster || relatedSetlist.value?.poster || '/icon.png'
+  return resolveMediaUrl(relatedSetlist.value?.image) || '/icon.png'
 })
 
 useSeoMeta({
@@ -222,27 +166,16 @@ useHead({
 
 // Pertunjukan replay lainnya (Rekomendasi replay lainnya)
 const otherReplays = computed(() => {
-  const now = Date.now()
-  return appwriteShows.value
-    .filter(s => {
-      const isDifferent = (s.$id || String(s.id)) !== showId.value
-      const hasReplayUrl = Boolean(s.replay_url && s.replay_url.trim())
-      const ts = getShowTimestamp(s.date, s.time)
-      const isPast = ts > 0 && ts <= now
-      return isDifferent && hasReplayUrl && isPast
-    })
+  return otherShows.value
+    .filter(s => String(s.id) !== showId.value)
     .map(s => {
-      const rel = setlists.value.find(
-        set => set.$id === s.setlist_id || String(set.id) === String(s.setlist_id)
-      )
       return {
-        id: s.$id || String(s.id),
-        title: rel?.title_id || 'Pertunjukan Teater',
-        originalTitle: rel?.title_jp || '',
+        id: String(s.id),
+        title: s.setlist?.title_id || 'Pertunjukan Teater',
+        originalTitle: s.setlist?.title_jp || '',
         date: formatIndonesianDate(s.date),
         time: formatIndonesianTime(s.time, s.date),
-        poster: rel?.image_url || '',
-        replay_url: s.replay_url
+        poster: resolveMediaUrl(s.setlist?.image)
       }
     })
     .slice(0, 3)
@@ -446,7 +379,7 @@ const copyReplayLink = () => {
       <ReplayPlayer
         :src="currentShow.replay_url"
         :title="relatedSetlist?.title_id"
-        :poster="relatedSetlist?.image_url"
+        :poster="resolveMediaUrl(relatedSetlist?.image)"
       />
 
       <!-- Show Details Section (Full Row, Tanpa Card) -->
@@ -454,7 +387,6 @@ const copyReplayLink = () => {
         <!-- Header Info Row -->
         <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div class="space-y-1.5 min-w-0">
-
             <h1 class="text-2xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
               {{ relatedSetlist?.title_id || 'Pertunjukan Teater' }}
             </h1>

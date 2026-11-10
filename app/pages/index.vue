@@ -1,73 +1,18 @@
 <script setup lang="ts">
-const appName = ref('Theater Idol')
+import { setlistService } from '~/services/setlist-service'
+import { showService } from '~/services/show-service'
+import type { Setlist } from '~/types/setlist'
+import type { ShowListItem } from '~/types/show'
+
+const config = useRuntimeConfig()
+const appName = ref((config.public?.appName as string) || 'Theater Idol')
 const isStreamEnabled = ref(true)
 const isReplayEnabled = ref(true)
 const isShowsLoading = ref(false)
 const isSetlistsLoading = ref(false)
 
-const setlists = ref([
-  {
-    $id: 'setlist-1',
-    id: 1,
-    title_id: 'Cara Meminum Ramune',
-    title_jp: 'Ramune no Nomikata (ラムネの飲み方)',
-    image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-2',
-    id: 2,
-    title_id: 'Aturan Anti Cinta',
-    title_jp: 'Renai Kinshi Jourei (恋愛禁止条例)',
-    image_url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-3',
-    id: 3,
-    title_id: 'Tunas Dibalik Seragam',
-    title_jp: 'Seifuku no Me (制服の芽)',
-    image_url: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-4',
-    id: 4,
-    title_id: 'Pajama Drive',
-    title_jp: 'Pajama Drive (パジャマドライブ)',
-    image_url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=800&auto=format&fit=crop&q=80'
-  }
-])
-
-const appwriteShows = ref([
-  {
-    $id: 'show-1',
-    id: 1,
-    setlist_id: 'setlist-1',
-    date: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
-    time: '19:00',
-    description: 'Pertunjukan penuh energi dan kesegaran masa muda khas setlist Ramune no Nomikata.',
-    lineup: 'Freya Jayawardana, Angelina Christy, Shania Gracia, Marsha Lenathea, Feni Fitriyanti, Gita Sekar',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  },
-  {
-    $id: 'show-2',
-    id: 2,
-    setlist_id: 'setlist-2',
-    date: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-    time: '14:00',
-    description: 'Setlist klasik Renai Kinshi Jourei dengan lagu-lagu nostalgia seperti Nagai Hikari dan Heart Gata Virus.',
-    lineup: 'Shania Gracia, Feni Fitriyanti, Gita Sekar, Indah Cahya, Adel Reva, Ella, Flora Shafiq, Oniel',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  },
-  {
-    $id: 'show-3',
-    id: 3,
-    setlist_id: 'setlist-3',
-    date: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-    time: '19:00',
-    description: 'Pertunjukan Tunas Dibalik Seragam yang berkesan dan penuh kejutan.',
-    lineup: 'Freya Jayawardana, Angelina Christy, Marsha Lenathea, Kathrina Irene, Jessi',
-    replay_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-  }
-])
+const setlists = ref<Setlist[]>([])
+const scheduleShows = ref<ShowListItem[]>([])
 
 useSeoMeta({
   title: 'Beranda - Nonton Live Streaming & Replay Pertunjukan Theater Idol',
@@ -114,10 +59,32 @@ useHead({
 const currentTime = ref(Date.now())
 let liveTimer: any = null
 
-// Hardcoded catalog data ready
+const loadData = async () => {
+  isSetlistsLoading.value = true
+  isShowsLoading.value = true
+
+  try {
+    const [setlistRes, scheduleRes] = await Promise.allSettled([
+      setlistService.getAll(1, 20),
+      showService.getSchedule(1, 20)
+    ])
+
+    if (setlistRes.status === 'fulfilled' && setlistRes.value.data) {
+      setlists.value = setlistRes.value.data
+    }
+    if (scheduleRes.status === 'fulfilled' && scheduleRes.value.data) {
+      scheduleShows.value = scheduleRes.value.data
+    }
+  } catch {
+    // Fallback gracefully
+  } finally {
+    isSetlistsLoading.value = false
+    isShowsLoading.value = false
+  }
+}
 
 onMounted(() => {
-  
+  loadData()
   liveTimer = setInterval(() => {
     currentTime.value = Date.now()
   }, 10000)
@@ -159,7 +126,7 @@ const activeLiveShow = computed(() => {
   const TEN_MINUTES = 10 * 60 * 1000
   const TWO_AND_HALF_HOURS = 2.5 * 60 * 60 * 1000
 
-  const active = appwriteShows.value.find(s => {
+  const active = scheduleShows.value.find(s => {
     const startTs = getShowTimestamp(s.date, s.time)
     if (!startTs) return false
     const windowStart = startTs - TEN_MINUTES
@@ -168,8 +135,8 @@ const activeLiveShow = computed(() => {
   })
 
   if (active) {
-    const related = setlists.value.find(
-      set => set.$id === active.setlist_id || String(set.id) === String(active.setlist_id)
+    const related = active.setlist || setlists.value.find(
+      set => String(set.id) === String(active.setlist_id)
     )
     const startTs = getShowTimestamp(active.date, active.time)
     const isLiveNow = now >= startTs
@@ -202,7 +169,7 @@ const activeLiveShow = computed(() => {
     }
 
     return {
-      id: active.$id || active.id,
+      id: String(active.id),
       title: related?.title_id || 'Pertunjukan Teater',
       originalTitle: related?.title_jp || '',
       date: formattedDate,
@@ -211,7 +178,7 @@ const activeLiveShow = computed(() => {
       isLiveNow,
       description: active.description || (related ? `Pertunjukan setlist ${related.title_id} yang dibawakan langsung dari panggung teater.` : 'Pertunjukan panggung teater langsung.'),
       lineup: lineupList,
-      poster: related?.image_url || ''
+      poster: resolveMediaUrl(related?.image)
     }
   }
 
@@ -221,7 +188,7 @@ const activeLiveShow = computed(() => {
 // Show berikutnya yang akan datang (untuk teaser saat offline)
 const nextUpcomingShow = computed(() => {
   const now = currentTime.value
-  const futureShows = appwriteShows.value
+  const futureShows = scheduleShows.value
     .filter(s => {
       const ts = getShowTimestamp(s.date, s.time)
       return ts > now
@@ -230,8 +197,8 @@ const nextUpcomingShow = computed(() => {
 
   if (futureShows.length > 0) {
     const next = futureShows[0]
-    const related = setlists.value.find(
-      set => set.$id === next.setlist_id || String(set.id) === String(next.setlist_id)
+    const related = next.setlist || setlists.value.find(
+      set => String(set.id) === String(next.setlist_id)
     )
     let formattedDate = ''
     try {

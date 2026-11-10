@@ -1,5 +1,14 @@
 <script setup lang="ts">
+import { setGlobalToast } from '~/composables/error-helper'
+
 const appName = 'Theater Idol'
+
+try {
+  const toast = useToast()
+  setGlobalToast(toast)
+} catch {
+  // SSR fallback
+}
 
 useHead({
   titleTemplate: (title) => (title ? `${title} - ${appName}` : appName),

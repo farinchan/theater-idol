@@ -1,26 +1,14 @@
 <script setup lang="ts">
+import { authService } from '~/services/auth-service'
+import { useAuth } from '~/composables/useAuth'
 
 const route = useRoute()
 const router = useRouter()
-const appName = ref('Theater Idol')
-const user = ref(null)
-const isLoading = ref(false)
-const authError = ref(null)
-const checkSession = async () => null
-const syncGoogleProfilePicture = async () => null
+const config = useRuntimeConfig()
+const appName = ref((config.public?.appName as string) || 'Theater Idol')
 
-const login = async (email) => {
-  router.push('/profile')
-  return { success: true }
-}
-const register = async (email, pass, name) => {
-  router.push('/profile')
-  return { success: true }
-}
-const loginWithGoogle = async () => {
-  router.push('/profile')
-  return { success: true }
-}
+const { state, setUser, setToken, logout } = useAuth()
+const isLoading = ref(false)
 
 useSeoMeta({
   title: 'Masuk / Daftar Akun - Theater Idol',
@@ -28,120 +16,157 @@ useSeoMeta({
   robots: 'noindex, follow'
 })
 
-const mode = ref<'login' | 'register'>('login')
+const mode = ref<'login' | 'register' | '2fa'>('login')
 const form = reactive({
   name: '',
   email: '',
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
+  otpCode: ''
 })
 
+const preAuthToken = ref<string | null>(null)
 const localError = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
-const isOAuthProcessing = ref(false)
 
-// Handle Google OAuth callback saat dialihkan kembali dari Appwrite
-onMounted(async () => {
-  const oauthStatus = route.query.oauth as string | undefined
-  const userId = route.query.userId as string | undefined
-  const secret = route.query.secret as string | undefined
-
-  if (oauthStatus === 'success' || (userId && secret)) {
-    isOAuthProcessing.value = true
-    localError.value = null
-    successMessage.value = 'Memverifikasi autentikasi Google...'
-
-    try {
-      // Jika Appwrite mengembalikan token via query parameter
-      
-
-      // Ambil dan pastikan data sesi aktif tersimpan
-      const currentUser = await checkSession()
-      if (currentUser) {
-        // Otomatis sinkronisasi foto profil Google jika belum ada avatar kustom
-        await syncGoogleProfilePicture()
-
-        successMessage.value = `Selamat datang, ${currentUser.name || 'Pengguna'}! Berhasil masuk dengan Google.`
-
-        let target = '/profile'
-        try {
-          const saved = sessionStorage.getItem('oauth_redirect')
-          if (saved) {
-            target = saved
-            sessionStorage.removeItem('oauth_redirect')
-          } else if (route.query.redirect) {
-            target = String(route.query.redirect)
-          }
-        } catch {}
-
-        setTimeout(() => {
-          router.replace(target)
-        }, 800)
-      } else {
-        localError.value = 'Sesi akun Google tidak ditemukan. Silakan coba masuk kembali.'
-      }
-    } catch (err: any) {
-      localError.value = err?.message || 'Gagal memproses otorisasi akun Google.'
-    } finally {
-      isOAuthProcessing.value = false
-    }
-  } else if (oauthStatus === 'failed') {
-    localError.value = 'Login dengan Google dibatalkan atau tidak berhasil. Silakan coba kembali.'
-    router.replace({ query: {} })
+// Hanya alihkan ke profil jika user sudah login dan TIDAK sedang membawa parameter redirect
+onMounted(() => {
+  if (state.isLoggedIn && !route.query.redirect) {
+    router.replace('/profile')
   }
 })
 
-// Trigger Google OAuth Login
+// Trigger Google OAuth Login (jika token dikirim via query atau popup)
 const handleGoogleLogin = async () => {
   localError.value = null
   successMessage.value = null
-  const redirectTarget = (route.query.redirect as string) || '/profile'
-  await loginWithGoogle(redirectTarget)
+  isLoading.value = true
+
+  try {
+    // Membuka Google Sign In jika Google Client ID terkonfigurasi atau via token prompt
+    const promptToken = prompt('Masukkan Google ID Token / Access Token:')
+    if (!promptToken) {
+      isLoading.value = false
+      return
+    }
+
+    const res = await authService.google({
+      credential: promptToken,
+      id_token: promptToken
+    })
+
+    if (res.data?.token && res.data?.user) {
+      setUser(res.data.user)
+      setToken(res.data.token)
+      successMessage.value = `Selamat datang, ${res.data.user.name || 'Pengguna'}! Berhasil masuk dengan Google.`
+      const target = (route.query.redirect as string) || '/profile'
+      setTimeout(() => router.replace(target), 800)
+    }
+  } catch (err: any) {
+    localError.value = err?.response?.data?.message || err?.message || 'Gagal masuk dengan Google.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleVerify2FA = async () => {
+  if (!preAuthToken.value || !form.otpCode || form.otpCode.length !== 6) {
+    localError.value = 'Silakan masukkan 6 digit kode verifikasi 2FA yang dikirim ke email.'
+    return
+  }
+
+  isLoading.value = true
+  localError.value = null
+  successMessage.value = null
+
+  try {
+    const res = await authService.verify2FA({
+      pre_auth_token: preAuthToken.value,
+      code: form.otpCode
+    })
+
+    if (res.data?.token && res.data?.user) {
+      setUser(res.data.user)
+      setToken(res.data.token)
+      successMessage.value = 'Verifikasi 2FA berhasil! Mengalihkan...'
+      const target = (route.query.redirect as string) || '/profile'
+      setTimeout(() => router.replace(target), 800)
+    }
+  } catch (err: any) {
+    localError.value = err?.response?.data?.message || err?.message || 'Kode 2FA tidak valid atau sudah kadaluarsa.'
+  } finally {
+    isLoading.value = false
+  }
 }
 
 const handleSubmit = async () => {
   localError.value = null
   successMessage.value = null
 
+  if (mode.value === '2fa') {
+    await handleVerify2FA()
+    return
+  }
+
   if (!form.email || !form.password) {
     localError.value = 'Silakan isi email dan kata sandi.'
     return
   }
 
-  if (form.password.length < 8) {
-    localError.value = 'Kata sandi minimal harus 8 karakter.'
+  if (form.password.length < 6) {
+    localError.value = 'Kata sandi minimal harus 6 karakter.'
     return
   }
 
-  if (mode.value === 'register') {
-    if (!form.name.trim()) {
-      localError.value = 'Nama lengkap / panggilan wota wajib diisi.'
-      return
-    }
-    if (form.password !== form.confirmPassword) {
-      localError.value = 'Konfirmasi kata sandi tidak cocok.'
-      return
-    }
+  isLoading.value = true
 
-    const res = await register(form.email, form.password, form.name)
-    if (res.success) {
-      successMessage.value = 'Akun berhasil dibuat! Mengalihkan ke profil...'
-      setTimeout(() => {
-        router.push('/profile')
-      }, 1200)
+  try {
+    if (mode.value === 'register') {
+      if (!form.name.trim()) {
+        localError.value = 'Nama lengkap / panggilan wota wajib diisi.'
+        isLoading.value = false
+        return
+      }
+      if (form.password !== form.confirmPassword) {
+        localError.value = 'Konfirmasi kata sandi tidak cocok.'
+        isLoading.value = false
+        return
+      }
+
+      const res = await authService.register({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        password: form.password
+      })
+
+      if (res.success) {
+        successMessage.value = 'Akun berhasil dibuat! Silakan masuk dengan email dan kata sandi Anda.'
+        mode.value = 'login'
+        form.password = ''
+        form.confirmPassword = ''
+      }
     } else {
-      localError.value = res.error || 'Pendaftaran gagal.'
+      const res = await authService.login({
+        email: form.email.trim(),
+        password: form.password
+      })
+
+      if (res.data?.two_factor_required && res.data?.pre_auth_token) {
+        preAuthToken.value = res.data.pre_auth_token
+        mode.value = '2fa'
+        successMessage.value = 'Kode verifikasi 2FA telah dikirim ke email Anda. Silakan masukkan 6 digit kode OTP.'
+      } else if (res.data?.token && res.data?.user) {
+        setUser(res.data.user)
+        setToken(res.data.token)
+        successMessage.value = 'Berhasil masuk! Mengalihkan...'
+        const target = (route.query.redirect as string) || '/profile'
+        setTimeout(() => router.replace(target), 800)
+      }
     }
-  } else {
-    const res = await login(form.email, form.password)
-    if (res.success) {
-      successMessage.value = 'Berhasil masuk! Mengalihkan...'
-      setTimeout(() => {
-        router.push('/profile')
-      }, 1000)
-    } else {
-      localError.value = res.error || 'Gagal masuk. Periksa email atau kata sandi.'
-    }
+  } catch (err: any) {
+    localError.value = err?.response?.data?.message || err?.message || 'Gagal memproses permintaan.'
+  } finally {
+    isLoading.value = false
   }
 }
 </script>
@@ -167,6 +192,37 @@ const handleSubmit = async () => {
 
       <!-- Main Card -->
       <div class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6 sm:p-8 shadow-sm space-y-6">
+        <!-- Logged-in session notice -->
+        <div v-if="state.isLoggedIn" class="p-4 rounded-2xl bg-primary/10 border border-primary/20 space-y-2">
+          <div class="flex items-center gap-2 text-xs font-bold text-primary">
+            <UIcon name="i-lucide-user-check" class="w-4 h-4" />
+            <span>Sedang Masuk sebagai {{ state.user?.name || state.user?.email }}</span>
+          </div>
+          <p class="text-[11px] text-neutral-500 dark:text-neutral-400">
+            Anda sedang aktif dengan akun ini. Anda dapat melanjutkan atau masuk dengan akun lain.
+          </p>
+          <div class="flex items-center gap-2 pt-1">
+            <UButton
+              size="xs"
+              color="primary"
+              variant="solid"
+              class="font-bold rounded-lg cursor-pointer"
+              @click="router.replace((route.query.redirect as string) || '/profile')"
+            >
+              Lanjutkan
+            </UButton>
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="outline"
+              class="font-bold rounded-lg cursor-pointer"
+              @click="logout"
+            >
+              Keluar / Ganti Akun
+            </UButton>
+          </div>
+        </div>
+
         <!-- Switch Tab Mode -->
         <div class="flex p-1 rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700/60">
           <button
@@ -241,77 +297,121 @@ const handleSubmit = async () => {
 
         <!-- Form Fields -->
         <form class="space-y-4" @submit.prevent="handleSubmit">
-          <div v-if="mode === 'register'" class="space-y-1.5">
-            <label class="text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider block">
-              Nama Lengkap
-            </label>
-            <UInput
-              v-model="form.name"
-              type="text"
-              placeholder="Contoh: Fajri"
-              icon="i-lucide-user"
-              size="md"
-              class="w-full"
-              required
-            />
-          </div>
+          <!-- 2FA Verification Mode -->
+          <template v-if="mode === '2fa'">
+            <div class="space-y-1.5">
+              <label class="text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider block">
+                Kode Verifikasi 2FA (6 Digit)
+              </label>
+              <UInput
+                v-model="form.otpCode"
+                type="text"
+                maxlength="6"
+                placeholder="Contoh: 123456"
+                icon="i-lucide-key-round"
+                size="md"
+                class="w-full text-center tracking-widest font-mono text-lg"
+                required
+                autofocus
+              />
+              <p class="text-[11px] text-neutral-500 dark:text-neutral-400">
+                Periksa kotak masuk email Anda untuk melihat kode OTP 6 digit.
+              </p>
+            </div>
 
-          <div class="space-y-1.5">
-            <label class="text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider block">
-              Alamat Email
-            </label>
-            <UInput
-              v-model="form.email"
-              type="email"
-              placeholder="nama@email.com"
-              icon="i-lucide-mail"
-              size="md"
-              class="w-full"
-              required
-            />
-          </div>
+            <UButton
+              type="submit"
+              color="primary"
+              variant="solid"
+              size="lg"
+              class="w-full justify-center rounded-2xl font-bold mt-2 shadow-md shadow-primary/25 cursor-pointer"
+              :loading="isLoading"
+            >
+              Verifikasi & Masuk
+            </UButton>
 
-          <div class="space-y-1.5">
-            <label class="text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider block">
-              Kata Sandi
-            </label>
-            <UInput
-              v-model="form.password"
-              type="password"
-              placeholder="Minimal 8 karakter..."
-              icon="i-lucide-lock"
-              size="md"
-              class="w-full"
-              required
-            />
-          </div>
+            <button
+              type="button"
+              class="w-full text-center text-xs text-neutral-400 hover:text-primary pt-2 cursor-pointer"
+              @click="mode = 'login'; preAuthToken = null; form.otpCode = ''"
+            >
+              Batal & Kembali ke Login
+            </button>
+          </template>
 
-          <div v-if="mode === 'register'" class="space-y-1.5">
-            <label class="text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider block">
-              Konfirmasi Kata Sandi
-            </label>
-            <UInput
-              v-model="form.confirmPassword"
-              type="password"
-              placeholder="Ulangi kata sandi..."
-              icon="i-lucide-shield-check"
-              size="md"
-              class="w-full"
-              required
-            />
-          </div>
+          <!-- Standard Login & Register Mode -->
+          <template v-else>
+            <div v-if="mode === 'register'" class="space-y-1.5">
+              <label class="text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider block">
+                Nama Lengkap
+              </label>
+              <UInput
+                v-model="form.name"
+                type="text"
+                placeholder="Contoh: Fajri"
+                icon="i-lucide-user"
+                size="md"
+                class="w-full"
+                required
+              />
+            </div>
 
-          <UButton
-            type="submit"
-            color="primary"
-            variant="solid"
-            size="lg"
-            class="w-full justify-center rounded-2xl font-bold mt-2 shadow-md shadow-primary/25 cursor-pointer"
-            :loading="isLoading && !isOAuthProcessing"
-            :disabled="isOAuthProcessing"
-          >
-            {{ mode === 'login' ? 'Masuk Sekarang' : 'Daftar & Buat Akun' }}
-          </UButton>
+            <div class="space-y-1.5">
+              <label class="text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider block">
+                Alamat Email
+              </label>
+              <UInput
+                v-model="form.email"
+                type="email"
+                placeholder="nama@email.com"
+                icon="i-lucide-mail"
+                size="md"
+                class="w-full"
+                required
+              />
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider block">
+                Kata Sandi
+              </label>
+              <UInput
+                v-model="form.password"
+                type="password"
+                placeholder="Minimal 6 karakter..."
+                icon="i-lucide-lock"
+                size="md"
+                class="w-full"
+                required
+              />
+            </div>
+
+            <div v-if="mode === 'register'" class="space-y-1.5">
+              <label class="text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider block">
+                Konfirmasi Kata Sandi
+              </label>
+              <UInput
+                v-model="form.confirmPassword"
+                type="password"
+                placeholder="Ulangi kata sandi..."
+                icon="i-lucide-shield-check"
+                size="md"
+                class="w-full"
+                required
+              />
+            </div>
+
+            <UButton
+              type="submit"
+              color="primary"
+              variant="solid"
+              size="lg"
+              class="w-full justify-center rounded-2xl font-bold mt-2 shadow-md shadow-primary/25 cursor-pointer"
+              :loading="isLoading"
+            >
+              {{ mode === 'login' ? 'Masuk Sekarang' : 'Daftar & Buat Akun' }}
+            </UButton>
+          </template>
         </form>
 
         <!-- Security Notice -->

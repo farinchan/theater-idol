@@ -1,8 +1,14 @@
 <script setup lang="ts">
+import { useAuth } from '~/composables/useAuth'
+import { useNavigation } from '~/composables/useNavigation'
+import { showService } from '~/services/show-service'
+
 const colorMode = useColorMode()
 const isMobileOpen = ref(false)
 const route = useRoute()
 const searchQuery = ref('')
+const config = useRuntimeConfig()
+const appName = ref((config.public?.appName as string) || 'Theater Idol')
 
 const isDark = computed({
   get: () => colorMode.value === 'dark',
@@ -11,131 +17,92 @@ const isDark = computed({
   }
 })
 
-interface NavItem {
-  label: string
-  to: string
-  icon: string
-  badge?: string | null
-  description: string
+const { state, logout: authLogout } = useAuth()
+const user = computed(() => state.user)
+const isAdmin = computed(() => state.isAdmin)
+
+const {
+  mainNavItems: navItems,
+  otherNavItems,
+  adminNavItems,
+  isRouteActive,
+  isLiveShowActive,
+  setLiveStatus
+} = useNavigation()
+
+// Cek pertunjukan aktif secara realtime
+const activeLiveShow = ref<{
+  id: string
+  title: string
+  time: string
+  isLiveNow: boolean
+} | null>(null)
+
+const checkLiveShow = async () => {
+  try {
+    const res = await showService.getSchedule(1, 10)
+    const shows = res.data || []
+    const now = Date.now()
+    const TEN_MINUTES = 10 * 60 * 1000
+    const TWO_AND_HALF_HOURS = 2.5 * 60 * 60 * 1000
+
+    const active = shows.find((s) => {
+      if (!s.date) return false
+      const [y, m, d] = s.date.split('-').map(Number)
+      let hours = 19
+      let minutes = 0
+      if (s.time) {
+        const parts = s.time.split(':').map(Number)
+        if (parts.length >= 2) {
+          hours = parts[0]
+          minutes = parts[1]
+        }
+      }
+      const startTs = new Date(y, m - 1, d, hours, minutes, 0).getTime()
+      return now >= startTs - TEN_MINUTES && now <= startTs + TWO_AND_HALF_HOURS
+    })
+
+    if (active) {
+      activeLiveShow.value = {
+        id: active.id,
+        title: active.setlist?.title_id || 'Pertunjukan Teater',
+        time: `${active.time || '19:00'} WIB`,
+        isLiveNow: true
+      }
+      setLiveStatus(true)
+    } else {
+      activeLiveShow.value = null
+      setLiveStatus(false)
+    }
+  } catch {
+    // Abaikan jika offline / backend belum start
+  }
 }
 
-// Hardcoded data pertunjukan aktif & portal settings
+onMounted(() => {
+  checkLiveShow()
+  const timer = setInterval(checkLiveShow, 30000)
+  onBeforeUnmount(() => clearInterval(timer))
+})
+
 const isStreamEnabled = ref(true)
 const isReplayEnabled = ref(true)
-const activeLiveShow = ref({
-  id: 'show-1',
-  title: 'Cara Meminum Ramune',
-  time: '19:00 WIB',
-  isLiveNow: true
+
+const userAvatar = computed(() => {
+  if (state.user?.photo) {
+    if (state.user.photo.startsWith('http')) return state.user.photo
+    const apiOrigin = new URL((config.public?.apiUrl as string) || 'http://localhost:8080').origin
+    return `${apiOrigin}${state.user.photo}`
+  }
+  if (state.user?.name) {
+    return `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(state.user.name)}&backgroundColor=d61515`
+  }
+  return ''
 })
-
-const navItems = computed<NavItem[]>(() => {
-  const items: NavItem[] = [
-    {
-      label: 'Home',
-      to: '/',
-      icon: 'i-lucide-home',
-      badge: null,
-      description: 'Beranda & ringkasan teater'
-    }
-  ]
-
-  if (isStreamEnabled.value) {
-    items.push({
-      label: 'Stream',
-      to: '/stream',
-      icon: 'i-lucide-radio',
-      badge: activeLiveShow.value ? 'LIVE' : null,
-      description: 'Siaran langsung panggung teater'
-    })
-  }
-
-  if (isReplayEnabled.value) {
-    items.push({
-      label: 'Replay',
-      to: '/replay',
-      icon: 'i-lucide-play-circle',
-      badge: null,
-      description: 'Arsip rekaman pertunjukan'
-    })
-  }
-
-  items.push({
-    label: 'Jadwal Show',
-    to: '/jadwal',
-    icon: 'i-lucide-calendar-days',
-    badge: null,
-    description: 'Jadwal panggung mendatang'
-  })
-
-  return items
-})
-
-const otherNavItems: NavItem[] = [
-  {
-    label: 'Pembayaran',
-    to: '/pembayaran',
-    icon: 'i-lucide-credit-card',
-    badge: null,
-    description: 'Metode & status transaksi'
-  }
-]
-
-const isRouteActive = (to: string) => {
-  return route.path === to
-}
-
-const appName = ref('Theater Idol')
-const user = ref({
-  $id: 'user-admin',
-  name: 'Admin Theater Idol',
-  email: 'admin@theater-idol.web.id',
-  labels: ['admin'],
-  prefs: {
-    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=JktRuby&backgroundColor=d61515'
-  }
-})
-const isAdmin = computed(() => true)
-const logout = () => {
-  user.value = null
-}
-
-const adminNavItems: NavItem[] = [
-  {
-    label: 'Management Show',
-    to: '/admin/shows',
-    icon: 'i-lucide-calendar-cog',
-    badge: null,
-    description: 'Kelola jadwal & data pertunjukan'
-  },
-  {
-    label: 'Management Pengguna',
-    to: '/admin/users',
-    icon: 'i-lucide-users',
-    badge: null,
-    description: 'Kelola akun, hak akses & member premium'
-  },
-  {
-    label: 'Riwayat Pembayaran',
-    to: '/admin/orders',
-    icon: 'i-lucide-receipt',
-    badge: null,
-    description: 'Kelola & pantau status transaksi pembayaran'
-  },
-  {
-    label: 'Pengaturan Website',
-    to: '/admin/settings',
-    icon: 'i-lucide-settings',
-    badge: null,
-    description: 'Nama website, toggle stream & replay'
-  }
-]
-
-const userAvatar = computed(() => user.value?.prefs?.avatar || '')
 
 const userInitials = computed(() => {
-  if (!user.value) return 'U'
-  const name = user.value.name || user.value.email || 'User'
+  if (!state.user) return 'U'
+  const name = state.user.name || state.user.email || 'User'
   return name.slice(0, 2).toUpperCase()
 })
 
@@ -146,8 +113,8 @@ const handleInstallApp = () => {
   install()
 }
 
-const handleLogout = async () => {
-  await logout()
+const handleLogout = () => {
+  authLogout()
 }
 </script>
 

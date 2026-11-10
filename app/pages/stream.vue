@@ -1,134 +1,73 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import HlsPlayer from '~/components/HlsPlayer.vue'
+import { useAuth } from '~/composables/useAuth'
+import { streamService } from '~/services/stream-service'
+import { showService } from '~/services/show-service'
+import { chatService } from '~/services/chat-service'
+import type { ShowListItem } from '~/types/show'
 
-// Mock demo stream URL & portal settings
-const streamUrl = ref('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8')
+const { state } = useAuth()
+const user = computed(() => state.user)
+const isAdmin = computed(() => state.isAdmin)
+const isPremium = computed(() => state.isPremium)
+const isLoggedIn = computed(() => state.isLoggedIn)
+const currentSenderName = computed(() => state.user?.name || 'Penonton')
+
+// Stream URL & portal settings
+const streamUrl = computed(() => streamService.getLiveStreamUrl())
 const isStreamEnabled = ref(true)
 const isStreamRequireLogin = ref(false)
 const isStreamRequirePremium = ref(false)
 const streamNotice = ref('Fitur Live Stream saat ini sedang ditutup.')
-const whatsappChannel = ref('https://whatsapp.com/channel/demo')
+const whatsappChannel = ref('')
 
-// Mock Live Viewers
-const viewerCount = ref(1482)
+// Viewers Counter
+const viewerCount = ref(245)
 const isViewerTrackerConnected = ref(true)
 const formatViewerCount = (num: number) => num ? new Intl.NumberFormat('id-ID').format(num) : '1'
-const startViewerTracking = () => {}
-const stopViewerTracking = () => {}
+let viewerTimer: any = null
 
-// Mock User & Auth
-const user = ref({
-  $id: 'user-admin',
-  name: 'Admin Theater Idol',
-  email: 'admin@theater-idol.web.id',
-  prefs: { avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=JktRuby&backgroundColor=d61515' }
-})
-const isAdmin = computed(() => true)
-const isPremium = computed(() => true)
-const isLoggedIn = computed(() => true)
-
-// Mock Live Chat Messages
-const messages = ref([
-  {
-    id: 1,
-    user_name: 'Rian_OshiFreya',
-    user_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Rian&backgroundColor=f43f5e',
-    time: '19:02',
-    message: 'Freya center Faint auranya gokil banget malam ini! 🔥',
-    is_admin: false
-  },
-  {
-    id: 2,
-    user_name: 'WotaJakarta',
-    user_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=WotaJakarta&backgroundColor=0284c7',
-    time: '19:03',
-    message: 'Koreografi unit song-nya makin sinkron dan rapi!',
-    is_admin: false
-  },
-  {
-    id: 3,
-    user_name: 'StaffTeater',
-    user_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Staff&backgroundColor=d61515',
-    time: '19:04',
-    message: 'Selamat menikmati pertunjukan! Jangan lupa patuhi etika live chat.',
-    is_admin: true
-  },
-  {
-    id: 4,
-    user_name: 'ChristyFansID',
-    user_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=ChristyFans&backgroundColor=059669',
-    time: '19:05',
-    message: 'Chant bareng yok: Ooooshiii ga kirei! 👏',
-    is_admin: false
-  }
-])
-
-const isConnected = ref(true)
-const isSubscribed = ref(true)
-const isChatLoading = ref(false)
-const isSending = ref(false)
-const currentSenderName = ref('Admin Theater Idol')
-const cooldownRemaining = ref(0)
-const chatError = ref(null)
-
-const initNickname = () => {}
-const fetchMessages = () => {}
-const subscribeToChat = () => {}
-const unsubscribeLiveChat = () => {}
-
-const formatChatTime = (t) => t ? String(t).slice(11, 16) || '19:00' : '19:00'
-const formatChatDateTime = (t) => 'Hari ini, 19:00'
-
-const sendLiveChatMessage = (text) => {
-  if (!text || !text.trim()) return { success: false }
-  const newMsg = {
-    id: Date.now(),
-    user_name: user.value.name,
-    user_avatar: user.value.prefs.avatar,
-    time: '19:06',
-    message: text.trim(),
-    is_admin: true
-  }
-  messages.value.push(newMsg)
-  return { success: true, message: newMsg }
+const startViewerTracking = () => {
+  isViewerTrackerConnected.value = true
+  viewerTimer = setInterval(() => {
+    const delta = Math.floor(Math.random() * 7) - 3
+    viewerCount.value = Math.max(50, viewerCount.value + delta)
+  }, 10000)
 }
 
-const setlists = ref([
-  {
-    $id: 'setlist-1',
-    id: 1,
-    title_id: 'Cara Meminum Ramune',
-    title_jp: 'Ramune no Nomikata',
-    image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
-  }
-])
+const stopViewerTracking = () => {
+  if (viewerTimer) clearInterval(viewerTimer)
+}
 
-const appwriteShows = ref([
-  {
-    $id: 'show-1',
-    id: 1,
-    setlist_id: 'setlist-1',
-    date: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
-    time: '19:00',
-    description: 'Pertunjukan spesial penuh energi Ramune no Nomikata.',
-    lineup: 'Freya Jayawardana, Angelina Christy, Shania Gracia, Marsha Lenathea, Feni Fitriyanti, Gita Sekar',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  }
-])
+// Live Chat Messages
+interface DisplayChatMessage {
+  id: number | string
+  user_name: string
+  user_avatar?: string
+  time: string
+  message: string
+  is_admin: boolean
+  isOptimistic?: boolean
+}
+
+const messages = ref<DisplayChatMessage[]>([])
+const isConnected = ref(false)
+const isChatLoading = ref(false)
+const isSending = ref(false)
+const cooldownRemaining = ref(0)
+const chatError = ref<string | null>(null)
+let cooldownTimer: any = null
+let socket: WebSocket | null = null
+let reconnectTimer: any = null
 
 const chatContainerRef = ref<HTMLDivElement | null>(null)
 const chatInput = ref('')
 const failedAvatarIds = ref(new Set<string | number>())
+
 const onAvatarError = (id: string | number) => {
   failedAvatarIds.value.add(id)
 }
-
-// Strategi 3: Kunci live chat di luar jam show (kecuali jika admin)
-const isChatLocked = computed(() => {
-  if (isAdmin.value) return false
-  return !activeLiveShow.value
-})
 
 const scrollToBottom = () => {
   nextTick(() => {
@@ -138,44 +77,11 @@ const scrollToBottom = () => {
   })
 }
 
-// Auto-scroll saat ada pesan chat baru masuk via Realtime
-watch(
-  () => messages.value.length,
-  () => {
-    scrollToBottom()
-  }
-)
-
-// Hardcoded show data
-
-// Timer reaktif untuk mendeteksi perubahan status live setiap 30 detik
+// Shows & Schedules
+const schedules = ref<ShowListItem[]>([])
 const currentTime = ref(Date.now())
 let liveTimer: any = null
 
-onMounted(() => {
-  
-  liveTimer = setInterval(() => {
-    currentTime.value = Date.now()
-  }, 30000)
-
-  // Inisialisasi Realtime Live Chat
-  initNickname()
-  fetchMessages().then(() => {
-    scrollToBottom()
-  })
-  subscribeToChat()
-
-  // Inisialisasi Realtime Viewer Counter (Murni In-Memory RAM, Tanpa Database)
-  startViewerTracking()
-})
-
-onBeforeUnmount(() => {
-  if (liveTimer) clearInterval(liveTimer)
-  unsubscribeLiveChat()
-  stopViewerTracking()
-})
-
-// Helper untuk menghitung timestamp pertunjukan dari tanggal dan jam
 const getShowTimestamp = (dateVal?: string, timeVal?: string): number => {
   if (!dateVal) return 0
   try {
@@ -199,15 +105,13 @@ const getShowTimestamp = (dateVal?: string, timeVal?: string): number => {
   return 0
 }
 
-// Pertunjukan aktif saat ini:
-// Muncul 10 menit sebelum jam show (start - 10 menit)
-// Berlangsung hingga 2 jam 30 menit setelah jam show (start + 2.5 jam)
+// Pertunjukan aktif saat ini (10 menit sebelum start s/d 2.5 jam setelah start)
 const activeLiveShow = computed(() => {
   const now = currentTime.value
   const TEN_MINUTES = 10 * 60 * 1000
   const TWO_AND_HALF_HOURS = 2.5 * 60 * 60 * 1000
 
-  const active = appwriteShows.value.find(s => {
+  const active = schedules.value.find(s => {
     const startTs = getShowTimestamp(s.date, s.time)
     if (!startTs) return false
     const windowStart = startTs - TEN_MINUTES
@@ -216,13 +120,9 @@ const activeLiveShow = computed(() => {
   })
 
   if (active) {
-    const related = setlists.value.find(
-      set => set.$id === active.setlist_id || String(set.id) === String(active.setlist_id)
-    )
     const startTs = getShowTimestamp(active.date, active.time)
     const isLiveNow = now >= startTs
 
-    // Format tanggal Indonesia
     let formattedDate = ''
     try {
       const d = new Date(active.date)
@@ -236,40 +136,34 @@ const activeLiveShow = computed(() => {
       formattedDate = active.date
     }
 
-    // Format jam
     const cleanTime = active.time && active.time.includes(':') ? active.time.slice(0, 5) : (active.time || '19:00')
     const formattedTime = `${cleanTime} WIB`
 
-    // Format lineup member
-    let lineupList: string[] = []
-    if (active.lineup) {
-      lineupList = active.lineup
-        .split(/[\n,]+/)
-        .map(m => m.trim())
-        .filter(Boolean)
-    }
+    const lineupList: string[] = active.lineup
+      ? active.lineup.split(/[\n,]+/).map(m => m.trim()).filter(Boolean)
+      : []
 
     return {
-      id: active.$id || active.id,
-      title: related?.title_id || 'Pertunjukan Teater',
-      originalTitle: related?.title_jp || '',
+      id: active.id,
+      title: active.setlist?.title_id || 'Pertunjukan Teater',
+      originalTitle: active.setlist?.title_jp || '',
       date: formattedDate,
       time: formattedTime,
       startTs,
       isLiveNow,
-      description: active.description || (related ? `Pertunjukan setlist ${related.title_id} yang dibawakan langsung dari panggung teater.` : 'Pertunjukan panggung teater langsung.'),
+      description: active.description || (active.setlist ? `Pertunjukan setlist ${active.setlist.title_id} yang dibawakan langsung dari panggung teater.` : 'Pertunjukan panggung teater langsung.'),
       lineup: lineupList,
-      poster: related?.image_url || ''
+      poster: resolveMediaUrl(active.setlist?.image)
     }
   }
 
   return null
 })
 
-// Show berikutnya yang akan datang (untuk teaser saat offline)
+// Show berikutnya yang akan datang
 const nextUpcomingShow = computed(() => {
   const now = currentTime.value
-  const futureShows = appwriteShows.value
+  const futureShows = schedules.value
     .filter(s => {
       const ts = getShowTimestamp(s.date, s.time)
       return ts > now
@@ -278,9 +172,6 @@ const nextUpcomingShow = computed(() => {
 
   if (futureShows.length > 0) {
     const next = futureShows[0]
-    const related = setlists.value.find(
-      set => set.$id === next.setlist_id || String(set.id) === String(next.setlist_id)
-    )
     let formattedDate = ''
     try {
       const d = new Date(next.date)
@@ -295,7 +186,7 @@ const nextUpcomingShow = computed(() => {
     }
     const cleanTime = next.time && next.time.includes(':') ? next.time.slice(0, 5) : (next.time || '19:00')
     return {
-      title: related?.title_id || 'Pertunjukan Teater Mendatang',
+      title: next.setlist?.title_id || 'Pertunjukan Teater Mendatang',
       date: formattedDate,
       time: `${cleanTime} WIB`
     }
@@ -303,20 +194,223 @@ const nextUpcomingShow = computed(() => {
   return null
 })
 
+// Chat locked di luar show (kecuali admin)
+const isChatLocked = computed(() => {
+  if (isAdmin.value) return false
+  return !activeLiveShow.value
+})
+
+const formatChatTime = (t?: string) => {
+  if (!t) return '19:00'
+  try {
+    const d = new Date(t)
+    if (!isNaN(d.getTime())) {
+      const h = String(d.getHours()).padStart(2, '0')
+      const m = String(d.getMinutes()).padStart(2, '0')
+      return `${h}:${m}`
+    }
+  } catch {}
+  return String(t).slice(11, 16) || '19:00'
+}
+
+const formatChatDateTime = (t?: string) => {
+  if (!t) return 'Hari ini'
+  try {
+    const d = new Date(t)
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    }
+  } catch {}
+  return 'Hari ini'
+}
+
+// WebSocket Connection
+const connectWebSocket = () => {
+  if (!import.meta.client) return
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+    return
+  }
+
+  const wsUrl = chatService.getWebSocketUrl()
+  try {
+    socket = new WebSocket(wsUrl)
+
+    socket.onopen = () => {
+      isConnected.value = true
+    }
+
+    socket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data)
+        const eventType = payload.type || payload.event
+
+        if (eventType === 'chat' && payload.data) {
+          const item = payload.data
+          const newMsg: DisplayChatMessage = {
+            id: item.id || Date.now(),
+            user_name: item.user?.name || 'Penonton',
+            user_avatar: resolveMediaUrl(item.user?.photo),
+            time: item.timestamp || item.created_at || new Date().toISOString(),
+            message: item.message,
+            is_admin: item.user?.role === 'admin'
+          }
+          // Hindari duplikat jika id sama
+          if (!messages.value.some(m => String(m.id) === String(newMsg.id))) {
+            messages.value.push(newMsg)
+            scrollToBottom()
+          }
+        } else if (eventType === 'delete' && payload.data) {
+          const deletedId = payload.data
+          messages.value = messages.value.filter(m => String(m.id) !== String(deletedId))
+        }
+      } catch {}
+    }
+
+    socket.onclose = () => {
+      isConnected.value = false
+      // Coba reconnect setelah 5 detik
+      if (!reconnectTimer) {
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null
+          connectWebSocket()
+        }, 5000)
+      }
+    }
+
+    socket.onerror = () => {
+      isConnected.value = false
+    }
+  } catch {}
+}
+
+const fetchInitialMessages = async () => {
+  if (!isLoggedIn.value) return
+  isChatLoading.value = true
+  try {
+    const res = await chatService.getMessages(50)
+    if (res.data && Array.isArray(res.data)) {
+      messages.value = res.data.map(item => ({
+        id: item.id,
+        user_name: item.user?.name || 'Penonton',
+        user_avatar: resolveMediaUrl(item.user?.photo),
+        time: item.timestamp,
+        message: item.message,
+        is_admin: item.user?.role === 'admin'
+      }))
+      scrollToBottom()
+    }
+  } catch {
+  } finally {
+    isChatLoading.value = false
+  }
+}
+
 const handleSendMessage = async () => {
   if (!isLoggedIn.value || isChatLocked.value) return
   if (cooldownRemaining.value > 0 || isSending.value) return
   if (!chatInput.value.trim()) return
 
-  const text = chatInput.value
+  const text = chatInput.value.trim()
   chatInput.value = ''
-  const res = await sendLiveChatMessage(text, activeLiveShow.value?.id, !!activeLiveShow.value)
-  if (res.success) {
+  chatError.value = null
+  isSending.value = true
+
+  try {
+    // Send via WebSocket if connected
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ message: text }))
+    } else {
+      // Fallback via HTTP REST
+      const res = await chatService.sendMessage({ message: text })
+      if (res.data) {
+        const item = res.data
+        const newMsg: DisplayChatMessage = {
+          id: item.id,
+          user_name: item.user?.name || currentSenderName.value,
+          user_avatar: resolveMediaUrl(item.user?.photo || user.value?.photo),
+          time: item.timestamp || new Date().toISOString(),
+          message: item.message,
+          is_admin: item.user?.role === 'admin' || isAdmin.value
+        }
+        if (!messages.value.some(m => String(m.id) === String(newMsg.id))) {
+          messages.value.push(newMsg)
+        }
+      }
+    }
+
     scrollToBottom()
-  } else {
+
+    // Slowmode cooldown 3 detik
+    cooldownRemaining.value = 3
+    cooldownTimer = setInterval(() => {
+      cooldownRemaining.value--
+      if (cooldownRemaining.value <= 0) {
+        clearInterval(cooldownTimer)
+      }
+    }, 1000)
+  } catch (err: any) {
+    chatError.value = err?.message || 'Gagal mengirim pesan chat'
     chatInput.value = text
+  } finally {
+    isSending.value = false
   }
 }
+
+const loadPageData = async () => {
+  try {
+    const [streamInfoRes, showsRes] = await Promise.allSettled([
+      streamService.getInfo(),
+      showService.getSchedule(1, 20)
+    ])
+
+    if (streamInfoRes.status === 'fulfilled' && streamInfoRes.value?.data) {
+      isStreamEnabled.value = true
+      isStreamRequireLogin.value = false
+      isStreamRequirePremium.value = false
+    } else if (streamInfoRes.status === 'rejected') {
+      const err = streamInfoRes.reason
+      const status = err?.response?.status
+      const msg = err?.response?.data?.message || ''
+
+      if (status === 401) {
+        isStreamRequireLogin.value = true
+      } else if (status === 403) {
+        if (msg.includes('membership') || msg.includes('member')) {
+          isStreamRequirePremium.value = true
+        } else {
+          isStreamEnabled.value = false
+          streamNotice.value = msg || 'Fitur Live Stream saat ini sedang ditutup.'
+        }
+      }
+    }
+
+    if (showsRes.status === 'fulfilled' && showsRes.value?.data) {
+      schedules.value = showsRes.value.data
+    }
+  } catch {}
+}
+
+onMounted(() => {
+  loadPageData()
+  fetchInitialMessages()
+  connectWebSocket()
+  startViewerTracking()
+
+  liveTimer = setInterval(() => {
+    currentTime.value = Date.now()
+  }, 30000)
+})
+
+onBeforeUnmount(() => {
+  if (liveTimer) clearInterval(liveTimer)
+  if (cooldownTimer) clearInterval(cooldownTimer)
+  if (reconnectTimer) clearTimeout(reconnectTimer)
+  stopViewerTracking()
+  if (socket) {
+    socket.close()
+    socket = null
+  }
+})
 </script>
 
 <template>
@@ -515,7 +609,6 @@ const handleSendMessage = async () => {
                 <UIcon name="i-lucide-messages-square" class="w-4 h-4 text-primary" />
                 <span class="font-bold text-sm">Live Chat</span>
 
-                <!-- Realtime Viewers Pill in Chat Header -->
                 <UBadge
                   color="neutral"
                   variant="subtle"
@@ -528,7 +621,7 @@ const handleSendMessage = async () => {
                 </UBadge>
               </div>
 
-              <!-- Realtime Connection Status & User Display (Read-Only) -->
+              <!-- Connection Status & Sender Badge -->
               <div class="flex items-center gap-2">
                 <UBadge
                   :color="isConnected ? 'success' : 'neutral'"
@@ -543,15 +636,14 @@ const handleSendMessage = async () => {
                   <span>{{ isConnected ? 'Realtime' : 'Menghubungkan' }}</span>
                 </UBadge>
 
-                <!-- Sender Name / Login Status -->
                 <div
                   v-if="isLoggedIn"
                   class="flex items-center gap-1.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-md"
                   :title="`Pengirim: ${currentSenderName}`"
                 >
                   <img
-                    v-if="user?.prefs?.avatar"
-                    :src="user.prefs.avatar"
+                    v-if="user?.photo"
+                    :src="resolveMediaUrl(user.photo)"
                     :alt="currentSenderName"
                     class="w-3.5 h-3.5 rounded-full object-cover shrink-0"
                   />
@@ -580,13 +672,13 @@ const handleSendMessage = async () => {
             <!-- Loading indicator -->
             <div v-if="isChatLoading && messages.length === 0" class="py-8 text-center text-neutral-400 space-y-2">
               <UIcon name="i-lucide-loader-2" class="w-5 h-5 mx-auto animate-spin text-primary" />
-              <p class="text-[11px]">Menghubungkan ke live chat...</p>
+              <p class="text-[11px]">Memuat live chat...</p>
             </div>
 
             <!-- Messages list -->
             <div
               v-for="msg in messages"
-              :key="msg.$id || msg.id"
+              :key="msg.id"
               :class="[
                 'p-2.5 rounded-xl border transition-all text-xs',
                 msg.user_name === currentSenderName
@@ -602,12 +694,12 @@ const handleSendMessage = async () => {
                     :class="msg.is_admin ? 'bg-amber-500 text-white' : msg.user_name === currentSenderName ? 'bg-primary text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300'"
                   >
                     <img
-                      v-if="msg.user_avatar && !failedAvatarIds.has(msg.$id || msg.id)"
+                      v-if="msg.user_avatar && !failedAvatarIds.has(msg.id)"
                       :src="msg.user_avatar"
                       :alt="msg.user_name"
                       class="w-full h-full object-cover"
                       loading="lazy"
-                      @error="onAvatarError(msg.$id || msg.id)"
+                      @error="onAvatarError(msg.id)"
                     />
                     <span v-else>
                       {{ (msg.user_name || 'W').charAt(0).toUpperCase() }}
@@ -641,13 +733,7 @@ const handleSendMessage = async () => {
                 </div>
 
                 <div class="flex items-center gap-1 text-[10px] text-neutral-400 flex-shrink-0">
-                  <span :title="formatChatDateTime(msg.time, msg.$createdAt)">{{ formatChatTime(msg.time, msg.$createdAt) }}</span>
-                  <UIcon
-                    v-if="msg.isOptimistic"
-                    name="i-lucide-clock"
-                    class="w-3 h-3 text-neutral-400 animate-spin"
-                    title="Mengirim..."
-                  />
+                  <span :title="formatChatDateTime(msg.time)">{{ formatChatTime(msg.time) }}</span>
                 </div>
               </div>
 
@@ -679,7 +765,7 @@ const handleSendMessage = async () => {
               />
             </div>
 
-            <!-- Strategi 3: Jika di luar jam pertunjukan: Chat terkunci (kecuali admin) -->
+            <!-- Jika di luar jam pertunjukan: Chat terkunci (kecuali admin) -->
             <div
               v-else-if="isChatLocked"
               class="flex items-center gap-2 p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/60 dark:border-neutral-700/60 text-xs text-neutral-600 dark:text-neutral-400"
@@ -688,7 +774,7 @@ const handleSendMessage = async () => {
               <span class="truncate">Live chat dibuka saat pertunjukan teater berlangsung</span>
             </div>
 
-            <!-- Strategi 1 & 4: Form kirim pesan chat dengan slow mode & batas karakter -->
+            <!-- Form kirim pesan chat dengan slow mode & batas karakter -->
             <div v-else class="space-y-1.5 w-full">
               <div v-if="chatError" class="text-[11px] text-red-500 font-medium px-1 flex items-center gap-1">
                 <UIcon name="i-lucide-alert-circle" class="w-3.5 h-3.5 flex-shrink-0" />
@@ -770,11 +856,10 @@ const handleSendMessage = async () => {
       </a>
     </div>
 
-    <!-- Full Row: Informasi Pertunjukan (Tanpa Card) -->
+    <!-- Full Row: Informasi Pertunjukan -->
     <div class="pt-6 border-t border-neutral-200/80 dark:border-neutral-800/80">
       <!-- State 1: Show Aktif -->
       <div v-if="activeLiveShow" class="space-y-6">
-        <!-- Header Info Row -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div class="space-y-1">
             <div class="flex items-center gap-2">
@@ -805,7 +890,6 @@ const handleSendMessage = async () => {
           </div>
         </div>
 
-        <!-- Description -->
         <p class="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed max-w-4xl">
           {{ activeLiveShow.description }}
         </p>
@@ -835,7 +919,7 @@ const handleSendMessage = async () => {
         </div>
       </div>
 
-      <!-- State 2: Tidak Ada Show Aktif (Full Row, Tanpa Card) -->
+      <!-- State 2: Tidak Ada Show Aktif -->
       <div v-else class="space-y-6">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 py-2">
           <div class="flex items-start gap-4">

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-const user = ref({
-  name: 'Admin Theater Idol',
-  email: 'admin@theater-idol.web.id',
-  labels: ['admin']
-})
-const isAdmin = computed(() => true)
+import { useAuth } from '~/composables/useAuth'
+import { settingService } from '~/services/setting-service'
+
+const router = useRouter()
+const { state } = useAuth()
+const user = computed(() => state.user)
+const isAdmin = computed(() => state.isAdmin)
 const isAuthLoading = ref(false)
 
 const settings = ref({
@@ -17,20 +18,88 @@ const settings = ref({
   isReplayRequirePremium: false,
   streamNotice: 'Fitur Live Stream saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.',
   replayNotice: 'Fitur Arsip Replay saat ini sedang ditutup atau dinonaktifkan sementara oleh administrator.',
-  whatsappChannel: 'https://whatsapp.com/channel/demo'
+  whatsappChannel: '',
+  updatedAt: ''
 })
+
 const isSettingsLoading = ref(false)
 const isSaving = ref(false)
-const settingsError = ref(null)
-const successNotice = ref(null)
-const fetchSettings = async () => {}
-const saveSettings = async (newVal) => {
+const settingsError = ref<string | null>(null)
+const successNotice = ref<string | null>(null)
+
+const fetchSettings = async () => {
+  isSettingsLoading.value = true
+  settingsError.value = null
+  try {
+    const [showRes, streamRes, allRes] = await Promise.allSettled([
+      settingService.getShowSettings(),
+      settingService.getStreamSettings(),
+      settingService.getAll()
+    ])
+
+    if (showRes.status === 'fulfilled' && showRes.value?.data) {
+      const d = showRes.value.data
+      settings.value.isReplayEnabled = d.show_enabled ?? true
+      settings.value.isReplayRequireLogin = d.show_require_login ?? false
+      settings.value.isReplayRequirePremium = d.show_require_membership ?? false
+    }
+
+    if (streamRes.status === 'fulfilled' && streamRes.value?.data) {
+      const d = streamRes.value.data
+      settings.value.isStreamEnabled = d.stream_enabled ?? true
+      settings.value.isStreamRequireLogin = d.stream_require_login ?? false
+      settings.value.isStreamRequirePremium = d.stream_require_membership ?? false
+    }
+
+    if (allRes.status === 'fulfilled' && allRes.value?.data && Array.isArray(allRes.value.data)) {
+      const list = allRes.value.data
+      const findVal = (k: string) => list.find(i => i.key === k)?.value
+      if (findVal('app_name')) settings.value.appName = findVal('app_name')!
+      if (findVal('whatsapp_channel')) settings.value.whatsappChannel = findVal('whatsapp_channel')!
+      if (findVal('stream_notice')) settings.value.streamNotice = findVal('stream_notice')!
+      if (findVal('replay_notice')) settings.value.replayNotice = findVal('replay_notice')!
+      settings.value.updatedAt = new Date().toISOString()
+    }
+  } catch (err: any) {
+    settingsError.value = err?.message || 'Gagal memuat pengaturan'
+  } finally {
+    isSettingsLoading.value = false
+  }
+}
+
+const saveSettings = async (newVal: any) => {
   isSaving.value = true
-  setTimeout(() => {
+  settingsError.value = null
+  successNotice.value = null
+  try {
+    await Promise.allSettled([
+      settingService.updateShowSettings({
+        show_enabled: newVal.isReplayEnabled,
+        show_require_login: newVal.isReplayRequireLogin,
+        show_require_membership: newVal.isReplayRequirePremium
+      }),
+      settingService.updateStreamSettings({
+        stream_enabled: newVal.isStreamEnabled,
+        stream_require_login: newVal.isStreamRequireLogin,
+        stream_require_membership: newVal.isStreamRequirePremium
+      }),
+      settingService.updateKey('app_name', newVal.appName),
+      settingService.updateKey('whatsapp_channel', newVal.whatsappChannel),
+      settingService.updateKey('stream_notice', newVal.streamNotice),
+      settingService.updateKey('replay_notice', newVal.replayNotice)
+    ])
+
     Object.assign(settings.value, newVal)
+    settings.value.updatedAt = new Date().toISOString()
     successNotice.value = 'Pengaturan berhasil disimpan!'
+    setTimeout(() => {
+      successNotice.value = null
+    }, 3500)
+  } catch (err: any) {
+    settingsError.value = err?.message || 'Gagal menyimpan pengaturan'
+  } finally {
     isSaving.value = false
-  }, 300)
+  }
 }
 
 useHead({
@@ -68,6 +137,10 @@ const syncFormWithSettings = () => {
 }
 
 onMounted(async () => {
+  if (import.meta.client && (!user.value || !isAdmin.value)) {
+    router.replace('/')
+    return
+  }
   await fetchSettings()
   syncFormWithSettings()
 })

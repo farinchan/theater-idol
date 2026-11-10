@@ -12,6 +12,7 @@
   "dependencies": {
     "@nuxt/icon": "^2.5.1",
     "@nuxt/ui": "^4.11.2",
+    "axios": "^1.21.0",
     "hls.js": "^1.7.3",
     "nuxt": "^4.5.2",
     "plyr": "^3.8.4",

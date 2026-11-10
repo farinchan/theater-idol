@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useAuth } from '~/composables/useAuth'
+import { setlistService } from '~/services/setlist-service'
+import { showService } from '~/services/show-service'
+
 interface SetlistItem {
   $id?: string
   id?: string | number
@@ -23,126 +27,168 @@ interface ShowItem {
 }
 
 const router = useRouter()
-const user = ref({
-  name: 'Admin Theater Idol',
-  email: 'admin@theater-idol.web.id',
-  labels: ['admin']
-})
-const isAdmin = computed(() => true)
+const { state } = useAuth()
+const user = computed(() => state.user)
+const isAdmin = computed(() => state.isAdmin)
 const isAuthLoading = ref(false)
 const isInitialized = ref(true)
 
-const setlists = ref<SetlistItem[]>([
-  {
-    $id: 'setlist-1',
-    id: 1,
-    title_id: 'Cara Meminum Ramune',
-    title_jp: 'Ramune no Nomikata (ラムネの飲み方)',
-    image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-2',
-    id: 2,
-    title_id: 'Aturan Anti Cinta',
-    title_jp: 'Renai Kinshi Jourei (恋愛禁止条例)',
-    image_url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-3',
-    id: 3,
-    title_id: 'Tunas Dibalik Seragam',
-    title_jp: 'Seifuku no Me (制服の芽)',
-    image_url: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-4',
-    id: 4,
-    title_id: 'Pajama Drive',
-    title_jp: 'Pajama Drive (パジャマドライブ)',
-    image_url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=800&auto=format&fit=crop&q=80'
-  }
-])
+const setlists = ref<SetlistItem[]>([])
 const isSetlistsLoading = ref(false)
 const isSetlistActionLoading = ref(false)
-const setlistAppwriteError = ref(null)
-const setlistAppwriteNotice = ref(null)
-const fetchSetlists = async () => {}
-const createSetlist = async (data) => {
-  const newItem = {
-    $id: `setlist-${Date.now()}`,
-    id: Date.now(),
-    title_id: data.title_id,
-    title_jp: data.title_jp,
-    image_url: data.image_url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
+const setlistAppwriteError = ref<string | null>(null)
+const setlistAppwriteNotice = ref<string | null>(null)
+
+const fetchSetlists = async () => {
+  isSetlistsLoading.value = true
+  setlistAppwriteError.value = null
+  try {
+    const res = await setlistService.adminGetAll(1, 100)
+    if (res.data && Array.isArray(res.data)) {
+      setlists.value = res.data.map(s => ({
+        id: s.id,
+        $id: String(s.id),
+        title_id: s.title_id,
+        title_jp: s.title_jp,
+        image_url: resolveMediaUrl(s.image)
+      }))
+    }
+  } catch (err: any) {
+    setlistAppwriteError.value = err?.message || 'Gagal memuat setlist'
+  } finally {
+    isSetlistsLoading.value = false
   }
-  setlists.value.unshift(newItem)
-  return { success: true, item: newItem }
-}
-const updateSetlist = async (id, data) => {
-  const s = setlists.value.find(i => i.$id === id || String(i.id) === String(id))
-  if (s) {
-    s.title_id = data.title_id
-    s.title_jp = data.title_jp
-    if (data.image_url) s.image_url = data.image_url
-  }
-  return { success: true }
-}
-const deleteSetlist = async (id) => {
-  setlists.value = setlists.value.filter(i => i.$id !== id && String(i.id) !== String(id))
-  return { success: true }
 }
 
-const shows = ref<ShowItem[]>([
-  {
-    $id: 'show-1',
-    id: 1,
-    setlist_id: 'setlist-1',
-    date: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
-    time: '19:00',
-    description: 'Pertunjukan spesial penuh energi Ramune no Nomikata.',
-    lineup: 'Freya Jayawardana, Angelina Christy, Shania Gracia, Marsha Lenathea, Feni Fitriyanti, Gita Sekar',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  },
-  {
-    $id: 'show-2',
-    id: 2,
-    setlist_id: 'setlist-2',
-    date: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-    time: '14:00',
-    description: 'Setlist klasik Renai Kinshi Jourei.',
-    lineup: 'Shania Gracia, Feni Fitriyanti, Gita Sekar, Indah Cahya, Adel Reva, Ella',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
+const createSetlist = async (data: any) => {
+  isSetlistActionLoading.value = true
+  try {
+    const res = await setlistService.adminCreate({
+      title_id: data.title_id,
+      title_jp: data.title_jp,
+      image: data.file || null
+    })
+    await fetchSetlists()
+    return { success: true, item: res.data }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Gagal menambahkan setlist' }
+  } finally {
+    isSetlistActionLoading.value = false
   }
-])
+}
+
+const updateSetlist = async (id: string | number, data: any) => {
+  isSetlistActionLoading.value = true
+  try {
+    await setlistService.adminUpdate(Number(id), {
+      title_id: data.title_id,
+      title_jp: data.title_jp,
+      image: data.file || null
+    })
+    await fetchSetlists()
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Gagal memperbarui setlist' }
+  } finally {
+    isSetlistActionLoading.value = false
+  }
+}
+
+const deleteSetlist = async (id: string | number) => {
+  isSetlistActionLoading.value = true
+  try {
+    await setlistService.adminDelete(Number(id))
+    await fetchSetlists()
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Gagal menghapus setlist' }
+  } finally {
+    isSetlistActionLoading.value = false
+  }
+}
+
+const shows = ref<ShowItem[]>([])
 const isShowsLoading = ref(false)
 const isShowActionLoading = ref(false)
-const showAppwriteError = ref(null)
-const showAppwriteNotice = ref(null)
-const fetchShows = async () => {}
-const createShow = async (data) => {
-  const newItem = {
-    $id: `show-${Date.now()}`,
-    id: Date.now(),
-    setlist_id: data.setlist_id,
-    date: data.date,
-    time: data.time,
-    description: data.description,
-    lineup: data.lineup,
-    replay_url: data.replay_url
+const showAppwriteError = ref<string | null>(null)
+const showAppwriteNotice = ref<string | null>(null)
+
+const fetchShows = async () => {
+  isShowsLoading.value = true
+  showAppwriteError.value = null
+  try {
+    const res = await showService.adminGetAll(1, 100)
+    if (res.data && Array.isArray(res.data)) {
+      shows.value = res.data.map(s => ({
+        id: s.id,
+        $id: String(s.id),
+        setlist_id: String(s.setlist_id),
+        setlist: s.setlist,
+        date: s.date,
+        time: s.time,
+        description: s.description || '',
+        lineup: s.lineup || '',
+        replay_url: s.replay_url || ''
+      }))
+    }
+  } catch (err: any) {
+    showAppwriteError.value = err?.message || 'Gagal memuat jadwal'
+  } finally {
+    isShowsLoading.value = false
   }
-  shows.value.unshift(newItem)
-  return { success: true, item: newItem }
 }
-const updateShow = async (id, data) => {
-  const s = shows.value.find(i => i.$id === id || String(i.id) === String(id))
-  if (s) {
-    Object.assign(s, data)
+
+const createShow = async (data: any) => {
+  isShowActionLoading.value = true
+  try {
+    const res = await showService.adminCreate({
+      setlist_id: Number(data.setlist_id),
+      date: data.date,
+      time: data.time,
+      description: data.description,
+      lineup: data.lineup,
+      replay_url: data.replay_url
+    })
+    await fetchShows()
+    return { success: true, item: res.data }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Gagal menambahkan show' }
+  } finally {
+    isShowActionLoading.value = false
   }
-  return { success: true }
 }
-const deleteShow = async (id) => {
-  shows.value = shows.value.filter(i => i.$id !== id && String(i.id) !== String(id))
-  return { success: true }
+
+const updateShow = async (id: string, data: any) => {
+  isShowActionLoading.value = true
+  try {
+    await showService.adminUpdate(id, {
+      setlist_id: data.setlist_id ? Number(data.setlist_id) : undefined,
+      date: data.date,
+      time: data.time,
+      description: data.description,
+      lineup: data.lineup,
+      replay_url: data.replay_url
+    })
+    await fetchShows()
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Gagal memperbarui show' }
+  } finally {
+    isShowActionLoading.value = false
+  }
+}
+
+const deleteShow = async (id: string) => {
+  isShowActionLoading.value = true
+  try {
+    await showService.adminDelete(id)
+    await fetchShows()
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Gagal menghapus show' }
+  } finally {
+    isShowActionLoading.value = false
+  }
 }
 
 // Tab Navigation: Tab 1 = Setlist, Tab 2 = Jadwal Pertunjukan
@@ -565,18 +611,20 @@ const viewLineup = (show: ShowItem) => {
 
 // Inisialisasi data
 onMounted(() => {
+  if (!user.value || !isAdmin.value) {
+    router.replace('/')
+    return
+  }
   fetchSetlists()
   fetchShows()
 })
 
 // Proteksi Halaman Admin
-watch([isAuthLoading, isInitialized, user], () => {
-  if (isInitialized.value && !isAuthLoading.value) {
-    if (!user.value || !isAdmin.value) {
-      router.replace('/')
-    }
+watch([user, isAdmin], ([newUser, newIsAdmin]) => {
+  if (import.meta.client && (!newUser || !newIsAdmin)) {
+    router.replace('/')
   }
-}, { immediate: true })
+})
 </script>
 
 <template>

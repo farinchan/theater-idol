@@ -1,19 +1,20 @@
 <script setup lang="ts">
+import { useAuth } from '~/composables/useAuth'
+import { membershipService } from '~/services/membership-service'
+import type { MembershipPlan, MembershipTransaction, MembershipStatus } from '~/types/membership'
+
 const route = useRoute()
 const appName = ref('Theater Idol')
-const user = ref({
-  $id: 'user-admin',
-  name: 'Admin Theater Idol',
-  email: 'admin@theater-idol.web.id',
-  labels: ['admin'],
-  prefs: { avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=JktRuby&backgroundColor=d61515' }
-})
-const isAdmin = computed(() => true)
-const isPremium = computed(() => true)
-const premiumUntil = computed(() => '30 Hari ke Depan')
-const checkSession = async () => user.value
-const isLoading = ref(false)
-const isInitialized = ref(true)
+const { state } = useAuth()
+
+const user = computed(() => state.user)
+const isAdmin = computed(() => state.isAdmin)
+const isPremium = computed(() => state.isPremium)
+
+const membershipStatus = ref<MembershipStatus | null>(null)
+const isStatusLoading = ref(false)
+const isPlansLoading = ref(false)
+const isOrdersLoading = ref(false)
 
 useSeoMeta({
   title: 'Beli Membership Premium - Theater Idol',
@@ -40,13 +41,6 @@ useHead({
         'brand': {
           '@type': 'Brand',
           'name': 'Theater Idol'
-        },
-        'offers': {
-          '@type': 'AggregateOffer',
-          'priceCurrency': 'IDR',
-          'lowPrice': '12000',
-          'highPrice': '99000',
-          'offerCount': '4'
         }
       })
     }
@@ -55,6 +49,7 @@ useHead({
 
 export interface PremiumPlanOption {
   id: string
+  code: string
   name: string
   durationDays: number
   price: number
@@ -67,51 +62,39 @@ export interface PremiumPlanOption {
   isPopular?: boolean
 }
 
-export interface PremiumTransaction {
-  id: string
-  date: string
-  planId: string
-  planName: string
-  durationDays: number
-  amount: number
-  method: string
-  status: 'completed' | 'pending' | 'failed' | 'expired'
-  expiredAt?: string
-  paymentLinkUrl?: string
-}
-
-// ==========================================
-// 1. DAFTAR PAKET LANGGANAN PREMIUM
-// ==========================================
-const plans: PremiumPlanOption[] = [
+// Fallback plans jika API belum merespons
+const defaultPlans: PremiumPlanOption[] = [
   {
-    id: 'plan_7d',
-    name: 'Member Premium 7 Hari',
-    durationDays: 7,
-    price: 12000,
-    priceLabel: 'Rp 12.000',
-    badge: 'Paket Mingguan',
+    id: '3_days',
+    code: '3_days',
+    name: 'Membership 3 Hari',
+    durationDays: 3,
+    price: 5000,
+    priceLabel: 'Rp 5.000',
+    badge: 'Paket Uji Coba',
     badgeColor: 'neutral',
-    dailyPrice: 'Rp 1.714 / hari',
-    description: 'Akses penuh streaming live & katalog video replay selama 7 hari.',
-    features: ['Akses Live Streaming Teater', 'Akses Seluruh Arsip Replay', 'Masa Aktif 7 Hari Penuh']
+    dailyPrice: 'Rp 1.666 / hari',
+    description: 'Akses penuh streaming live & katalog video replay selama 3 hari.',
+    features: ['Akses Live Streaming Teater', 'Akses Seluruh Arsip Replay', 'Masa Aktif 3 Hari']
   },
   {
-    id: 'plan_14d',
-    name: 'Member Premium 14 Hari',
-    durationDays: 14,
-    price: 20000,
-    priceLabel: 'Rp 20.000',
+    id: '7_days',
+    code: '7_days',
+    name: 'Membership 7 Hari',
+    durationDays: 7,
+    price: 10000,
+    priceLabel: 'Rp 10.000',
     badge: 'Paling Populer',
     badgeColor: 'primary',
     dailyPrice: 'Rp 1.428 / hari',
-    description: 'Akses 2 minggu penuh untuk semua show teater & replay.',
-    features: ['Akses Live Streaming Teater', 'Akses Seluruh Arsip Replay', 'Masa Aktif 14 Hari Penuh', 'Lebih Hemat Rp 4.000'],
+    description: 'Akses 1 minggu penuh untuk semua show teater & replay.',
+    features: ['Akses Live Streaming Teater', 'Akses Seluruh Arsip Replay', 'Masa Aktif 7 Hari Penuh'],
     isPopular: true
   },
   {
-    id: 'plan_30d',
-    name: 'Member Premium 30 Hari',
+    id: '30_days',
+    code: '30_days',
+    name: 'Membership 30 Hari',
     durationDays: 30,
     price: 30000,
     priceLabel: 'Rp 30.000',
@@ -119,15 +102,14 @@ const plans: PremiumPlanOption[] = [
     badgeColor: 'warning',
     dailyPrice: 'Rp 1.000 / hari',
     description: 'Akses 1 bulan penuh tanpa batas dengan biaya super hemat!',
-    features: ['Akses Live Streaming Teater', 'Akses Seluruh Arsip Replay', 'Masa Aktif 30 Hari Penuh', 'Hemat Lebih dari 40%']
+    features: ['Akses Live Streaming Teater', 'Akses Seluruh Arsip Replay', 'Masa Aktif 30 Hari Penuh']
   }
 ]
 
-// ==========================================
-// 2. STATE MEMBER & PEMBAYARAN
-// ==========================================
+const plans = ref<PremiumPlanOption[]>(defaultPlans)
+const selectedPlanId = ref<string>('7_days')
+
 const isRefreshing = ref(false)
-const selectedPlanId = ref<string>('plan_30d')
 const isPlanModalOpen = ref(false)
 const isPaymentModalOpen = ref(false)
 const isSuccessModalOpen = ref(false)
@@ -137,28 +119,112 @@ const isSimulating = ref(false)
 const copySuccess = ref(false)
 const paymentError = ref<string | null>(null)
 const currentOrder = ref<any>(null)
-const successExpiryDate = ref<string | null>(null)
+
+// Format Rupiah
+const formatRupiah = (val: number) => {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0
+  }).format(val)
+}
+
+// Fetch plans dari backend
+const fetchPlans = async () => {
+  isPlansLoading.value = true
+  try {
+    const res = await membershipService.getPlans()
+    if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+      plans.value = res.data.map(p => {
+        let badge = 'Paket Hemat'
+        let badgeColor: 'neutral' | 'primary' | 'warning' | 'success' = 'neutral'
+        let isPopular = false
+
+        if (p.days === 7 || p.code === '7_days') {
+          badge = 'Paling Populer'
+          badgeColor = 'primary'
+          isPopular = true
+        } else if (p.days >= 30 || p.code === '30_days') {
+          badge = 'Paling Untung (Best Value)'
+          badgeColor = 'warning'
+        }
+
+        const daily = p.days > 0 ? formatRupiah(Math.round(p.price / p.days)) + ' / hari' : ''
+
+        return {
+          id: p.code,
+          code: p.code,
+          name: p.name,
+          durationDays: p.days,
+          price: p.price,
+          priceLabel: formatRupiah(p.price),
+          badge,
+          badgeColor,
+          dailyPrice: daily,
+          description: p.description || `Akses membership selama ${p.days} hari`,
+          features: ['Akses Live Streaming Teater', 'Akses Seluruh Arsip Replay', `Masa Aktif ${p.days} Hari Penuh`],
+          isPopular
+        }
+      })
+      if (!plans.value.some(p => p.id === selectedPlanId.value)) {
+        selectedPlanId.value = plans.value[0]?.id || '7_days'
+      }
+    }
+  } catch {} finally {
+    isPlansLoading.value = false
+  }
+}
+
+// Fetch user status
+const fetchMembershipStatus = async () => {
+  if (!state.isLoggedIn) return
+  isStatusLoading.value = true
+  try {
+    const res = await membershipService.getStatus()
+    if (res.data) {
+      membershipStatus.value = res.data
+    }
+  } catch {} finally {
+    isStatusLoading.value = false
+  }
+}
+
+// Fetch riwayat pesanan
+const serverOrders = ref<MembershipTransaction[]>([])
+
+const fetchOrders = async () => {
+  if (!state.isLoggedIn) {
+    serverOrders.value = []
+    return
+  }
+  isOrdersLoading.value = true
+  try {
+    const res = await membershipService.getHistory(1, 50)
+    if (res.data && Array.isArray(res.data)) {
+      serverOrders.value = res.data
+    }
+  } catch {} finally {
+    isOrdersLoading.value = false
+  }
+}
 
 // Selected plan object computed
 const selectedPlan = computed(() => {
-  return plans.find(p => p.id === selectedPlanId.value) || plans[0]
+  return plans.value.find(p => p.id === selectedPlanId.value) || plans.value[0] || defaultPlans[0]
 })
 
 // Cek status aktif premium
 const isPremiumActive = computed(() => {
-  return isPremium.value
+  return Boolean(membershipStatus.value?.is_member || isPremium.value)
 })
 
 const activePremiumUntil = computed(() => {
-  return premiumUntil.value
+  return membershipStatus.value?.membership_expires_at || null
 })
 
 // Format tanggal Indonesia
 const formatIndoDateTime = (dateStr?: string | null) => {
   if (!dateStr) return '-'
-  if (dateStr.toLowerCase().includes('permanen') || dateStr.toLowerCase().includes('lifetime')) {
-    return 'Permanen / Akses Seumur Hidup'
-  }
   try {
     const d = new Date(dateStr)
     if (isNaN(d.getTime())) return dateStr
@@ -189,10 +255,11 @@ const formatIndoTime = (dateStr?: string | null) => {
 
 // Perhitungan sisa hari premium
 const remainingDaysText = computed(() => {
-  if (!activePremiumUntil.value || !isPremiumActive.value) return ''
-  if (activePremiumUntil.value.toLowerCase().includes('permanen') || activePremiumUntil.value.toLowerCase().includes('lifetime')) {
-    return 'Seumur Hidup'
+  if (!isPremiumActive.value) return ''
+  if (membershipStatus.value && typeof membershipStatus.value.remaining_days === 'number') {
+    return `${membershipStatus.value.remaining_days} Hari Lagi`
   }
+  if (!activePremiumUntil.value) return ''
   const expTime = new Date(activePremiumUntil.value).getTime()
   if (isNaN(expTime)) return ''
   const diffMs = expTime - Date.now()
@@ -210,107 +277,51 @@ const userEmail = computed(() => {
   return user.value?.email || 'Belum masuk akun'
 })
 
-// ==========================================
-// 3. RIWAYAT TRANSAKSI DARI SERVER & LOKAL
-// ==========================================
-const serverOrders = ref<any[]>([])
-
-const fetchOrders = async () => {
-  if (!user.value) {
-    serverOrders.value = []
-    return
-  }
-  serverOrders.value = [
-    {
-      id: 'PREM-DEMO-1021',
-      paymentId: 'pay_demo_qris',
-      userId: user.value.$id || 'user-1',
-      userEmail: user.value.email || 'admin@theater-idol.web.id',
-      userName: user.value.name || 'Admin',
-      planId: 'plan_14d',
-      planName: 'Member Premium 14 Hari',
-      durationDays: 14,
-      amount: 20000,
-      method: 'QRIS',
-      status: 'completed',
-      createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-      paidAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString()
-    }
-  ]
-}
-
-// Pantau perubahan status akun user untuk mengambil transaksi yang sesuai
-watch(() => user.value?.$id, async (newId) => {
-  if (newId) {
-    await fetchOrders()
-  } else {
-    serverOrders.value = []
-  }
-})
-
-// Gabungan transaksi khusus pengguna yang sedang login
-const allTransactions = computed<PremiumTransaction[]>(() => {
-  if (!user.value) return []
-
-  const currentUserId = user.value.$id
-  const currentUserEmail = user.value.email?.trim().toLowerCase()
-
-  const list: PremiumTransaction[] = []
-
-  // Hanya masukkan data dari server orders milik user ini
-  for (const o of serverOrders.value) {
-    const matchId = currentUserId && o.userId && o.userId === currentUserId
-    const matchEmail = currentUserEmail && o.userEmail && o.userEmail.trim().toLowerCase() === currentUserEmail
-    if (o.userId || o.userEmail) {
-      if (!matchId && !matchEmail) continue
-    }
-
-    const dateFormatted = `${formatIndoDateTime(o.createdAt)}${formatIndoTime(o.createdAt) ? ', ' + formatIndoTime(o.createdAt) : ''}`
-    list.push({
-      id: o.id,
+// Gabungan transaksi
+const allTransactions = computed(() => {
+  return serverOrders.value.map(o => {
+    const dateFormatted = `${formatIndoDateTime(o.created_at)}${formatIndoTime(o.created_at) ? ', ' + formatIndoTime(o.created_at) : ''}`
+    return {
+      id: o.order_id || String(o.id),
       date: dateFormatted,
-      planId: o.planId,
-      planName: o.planName,
-      durationDays: o.durationDays,
+      planId: o.plan_code,
+      planName: o.plan_code ? `Membership ${o.days || 7} Hari` : 'Member Premium',
+      durationDays: o.days || 7,
       amount: o.amount,
-      method: o.method || 'QRIS',
+      method: o.payment_method?.toUpperCase() || 'QRIS',
       status: o.status || 'pending',
-      expiredAt: o.paidAt ? formatIndoDateTime(new Date(new Date(o.paidAt).getTime() + o.durationDays * 24 * 60 * 60 * 1000).toISOString()) : undefined,
-      paymentLinkUrl: o.paymentLinkUrl
-    })
-  }
-
-  return list
+      expiredAt: o.paid_at && o.days ? formatIndoDateTime(new Date(new Date(o.paid_at).getTime() + o.days * 24 * 60 * 60 * 1000).toISOString()) : undefined,
+      paymentLinkUrl: o.payment_link_url
+    }
+  })
 })
 
 // Muat sesi dan pesanan saat halaman dibuka
 onMounted(async () => {
-  if (import.meta.client) {
-    try {
-      await checkSession()
-      await fetchOrders()
+  await fetchPlans()
+  if (state.isLoggedIn) {
+    await Promise.allSettled([
+      fetchMembershipStatus(),
+      fetchOrders()
+    ])
 
-      // Periksa query URL jika redirect kembali dari pembayaran
-      if (route.query.status === 'success' && route.query.order_id) {
-        const orderId = String(route.query.order_id)
-        await checkSession()
-        await fetchOrders()
-        const found = serverOrders.value.find(o => o.id === orderId)
-        if (found) {
-          currentOrder.value = found
-          isSuccessModalOpen.value = true
-        }
-      }
-    } catch {}
+    // Cek query URL jika redirect kembali dari pembayaran Nagastra
+    if (route.query.status === 'success' || route.query.order_id) {
+      await fetchMembershipStatus()
+      await fetchOrders()
+      isSuccessModalOpen.value = true
+    }
   }
 })
 
-// Fungsi refresh manual status user dari Appwrite
+// Fungsi refresh manual status user
 const refreshUserStatus = async () => {
   isRefreshing.value = true
   try {
-    await checkSession()
-    await fetchOrders()
+    await Promise.allSettled([
+      fetchMembershipStatus(),
+      fetchOrders()
+    ])
   } finally {
     isRefreshing.value = false
   }
@@ -327,9 +338,9 @@ const selectPlan = (planId: string) => {
   selectedPlanId.value = planId
 }
 
-// Buat Tagihan Pembayaran QRIS
+// Buat Tagihan Pembayaran QRIS via backend checkout
 const handleCreatePayment = async () => {
-  if (!user.value) {
+  if (!state.isLoggedIn) {
     paymentError.value = 'Silakan masuk ke akun Anda terlebih dahulu.'
     return
   }
@@ -338,26 +349,22 @@ const handleCreatePayment = async () => {
   paymentError.value = null
 
   try {
-    const mockOrder = {
-      id: `PREM-${Date.now()}-DEMO`,
-      paymentId: `pay_demo_${Date.now()}`,
-      userId: user.value.$id,
-      userEmail: user.value.email,
-      userName: user.value.name || userDisplayName.value,
-      planId: selectedPlan.value.id,
-      planName: selectedPlan.value.name,
-      durationDays: selectedPlan.value.durationDays,
-      amount: selectedPlan.value.price,
-      method: 'QRIS',
-      paymentLinkUrl: 'https://example.com/mock-qris-invoice',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 3600 * 1000).toISOString()
+    const res = await membershipService.checkout({ plan_code: selectedPlan.value.code })
+    if (res.data) {
+      currentOrder.value = {
+        id: res.data.order_id,
+        planName: res.data.plan_name || selectedPlan.value.name,
+        amount: res.data.amount || selectedPlan.value.price,
+        paymentLinkUrl: res.data.payment_link_url,
+        status: res.data.status,
+        expiresAt: res.data.expires_at
+      }
+      isPlanModalOpen.value = false
+      isPaymentModalOpen.value = true
+      await fetchOrders()
     }
-    currentOrder.value = mockOrder
-    serverOrders.value.unshift(mockOrder)
-    isPlanModalOpen.value = false
-    isPaymentModalOpen.value = true
+  } catch (err: any) {
+    paymentError.value = err?.message || 'Gagal membuat transaksi pembayaran.'
   } finally {
     isCreatingPayment.value = false
   }
@@ -386,32 +393,39 @@ const copyPaymentLink = async () => {
 const checkPaymentStatus = async () => {
   if (!currentOrder.value?.id) return
   isCheckingStatus.value = true
-  setTimeout(() => {
+  try {
+    const res = await membershipService.getTransaction(currentOrder.value.id)
+    if (res.data) {
+      if (res.data.status === 'completed' || res.data.status === 'paid') {
+        currentOrder.value.status = 'completed'
+        isPaymentModalOpen.value = false
+        isSuccessModalOpen.value = true
+        await Promise.allSettled([
+          fetchMembershipStatus(),
+          fetchOrders()
+        ])
+      }
+    }
+  } catch {} finally {
     isCheckingStatus.value = false
-  }, 500)
+  }
 }
 
-// Simulasi pembayaran sandbox selesai (berguna untuk pengujian)
+// Simulasi pembayaran sandbox (admin)
 const handleSimulateComplete = async () => {
   if (!currentOrder.value?.id) return
   isSimulating.value = true
   try {
     currentOrder.value.status = 'completed'
-    currentOrder.value.paidAt = new Date().toISOString()
     isPaymentModalOpen.value = false
     isSuccessModalOpen.value = true
+    await Promise.allSettled([
+      fetchMembershipStatus(),
+      fetchOrders()
+    ])
   } finally {
     isSimulating.value = false
   }
-}
-
-// Format Rupiah
-const formatRupiah = (val: number) => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0
-  }).format(val)
 }
 </script>
 
@@ -437,16 +451,13 @@ const formatRupiah = (val: number) => {
       </div>
     </div>
 
-    <!-- ==================================================== -->
-    <!-- 1. CARD STATUS MEMBER & PREMIUM HINGGA (TOP CARD)    -->
-    <!-- ==================================================== -->
+    <!-- 1. CARD STATUS MEMBER & PREMIUM HINGGA -->
     <section
       class="rounded-3xl border transition-all p-6 sm:p-8 shadow-sm relative overflow-hidden"
       :class="isPremiumActive
         ? 'border-amber-500/40 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-white dark:to-neutral-900 shadow-amber-500/5'
         : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900'"
     >
-      <!-- Background Ambient Glow saat Premium -->
       <div v-if="isPremiumActive" class="absolute -right-16 -top-16 w-72 h-72 rounded-full bg-amber-500/15 blur-3xl pointer-events-none" />
 
       <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -474,7 +485,6 @@ const formatRupiah = (val: number) => {
           <!-- Membership Details -->
           <div class="space-y-1.5 flex-1">
             <div class="flex items-center gap-2 flex-wrap">
-              <!-- Badge Member Premium / Member Biasa -->
               <UBadge
                 :color="isPremiumActive ? 'warning' : 'neutral'"
                 :variant="isPremiumActive ? 'solid' : 'subtle'"
@@ -501,7 +511,7 @@ const formatRupiah = (val: number) => {
               <span class="text-xs text-neutral-400 font-mono">({{ userEmail }})</span>
             </div>
 
-            <!-- Jika Pengguna Belum Login -->
+            <!-- Jika Belum Login -->
             <div v-if="!user" class="space-y-2 pt-1 text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">
               <p class="leading-relaxed">
                 Anda belum masuk ke akun. Silakan <strong class="text-neutral-700 dark:text-neutral-200">Masuk Akun</strong> terlebih dahulu agar status Member Premium akun Anda terdeteksi.
@@ -520,7 +530,7 @@ const formatRupiah = (val: number) => {
               </div>
             </div>
 
-            <!-- Jika Member Premium: Tampilkan Tanggal Premium Hingga -->
+            <!-- Jika Member Premium -->
             <div v-else-if="isPremiumActive" class="space-y-1.5 pt-0.5">
               <div class="flex items-center gap-2 flex-wrap text-xs sm:text-sm text-neutral-700 dark:text-neutral-200">
                 <span class="text-neutral-500 dark:text-neutral-400 font-medium">Premium Hingga:</span>
@@ -528,7 +538,7 @@ const formatRupiah = (val: number) => {
                   <UIcon name="i-lucide-calendar-check" class="w-4 h-4 text-amber-500" />
                   {{ formatIndoDateTime(activePremiumUntil) }}
                 </span>
-                <span class="text-xs px-2.5 py-0.5 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold">
+                <span v-if="remainingDaysText" class="text-xs px-2.5 py-0.5 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold">
                   {{ remainingDaysText }}
                 </span>
               </div>
@@ -537,7 +547,7 @@ const formatRupiah = (val: number) => {
               </p>
             </div>
 
-            <!-- Jika Member Biasa: Keterangan Status Free -->
+            <!-- Jika Member Biasa -->
             <div v-else class="space-y-1.5 pt-0.5 text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">
               <p>
                 Status saat ini: <strong class="text-neutral-700 dark:text-neutral-300">Member Biasa (Akses Terbatas)</strong>.
@@ -549,9 +559,8 @@ const formatRupiah = (val: number) => {
           </div>
         </div>
 
-        <!-- Tombol Aksi & Pembayaran di Kanan -->
+        <!-- Tombol Aksi di Kanan -->
         <div class="flex flex-col sm:flex-row md:flex-col items-start md:items-end justify-center gap-3 flex-shrink-0 pt-2 md:pt-0">
-          <!-- Tombol Utama: Aktifkan / Tambah Premium -->
           <UButton
             color="warning"
             :variant="isPremiumActive ? 'subtle' : 'solid'"
@@ -563,7 +572,6 @@ const formatRupiah = (val: number) => {
             <span>{{ isPremiumActive ? 'Tambah / Perpanjang Premium' : 'Aktifkan Member Premium' }}</span>
           </UButton>
 
-          <!-- Tombol Segarkan Status -->
           <button
             v-if="user"
             type="button"
@@ -579,9 +587,7 @@ const formatRupiah = (val: number) => {
       </div>
     </section>
 
-    <!-- ==================================================== -->
-    <!-- 2. CARD RIWAYAT TRANSAKSI PEMBELIAN PREMIUM (BOTTOM) -->
-    <!-- ==================================================== -->
+    <!-- 2. CARD RIWAYAT TRANSAKSI PEMBELIAN PREMIUM -->
     <section v-if="user" class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6 sm:p-8 shadow-xs space-y-4">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-100 dark:border-neutral-800 pb-4">
         <div>
@@ -598,8 +604,14 @@ const formatRupiah = (val: number) => {
         </UBadge>
       </div>
 
+      <!-- Loading State -->
+      <div v-if="isOrdersLoading && allTransactions.length === 0" class="py-8 text-center space-y-2">
+        <div class="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto" />
+        <p class="text-xs text-neutral-500">Memuat riwayat transaksi...</p>
+      </div>
+
       <!-- Transactions List -->
-      <div v-if="allTransactions.length > 0" class="divide-y divide-neutral-100 dark:divide-neutral-800/80">
+      <div v-else-if="allTransactions.length > 0" class="divide-y divide-neutral-100 dark:divide-neutral-800/80">
         <div
           v-for="trx in allTransactions"
           :key="trx.id"
@@ -667,7 +679,7 @@ const formatRupiah = (val: number) => {
         </div>
       </div>
 
-      <!-- Empty State jika belum ada transaksi -->
+      <!-- Empty State -->
       <div v-else class="py-12 text-center space-y-2">
         <div class="w-12 h-12 rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-neutral-400 flex items-center justify-center mx-auto">
           <UIcon name="i-lucide-receipt" class="w-6 h-6" />
@@ -677,9 +689,7 @@ const formatRupiah = (val: number) => {
       </div>
     </section>
 
-    <!-- ==================================================== -->
-    <!-- 3. MODAL PILIH PAKET LANGGANAN PREMIUM               -->
-    <!-- ==================================================== -->
+    <!-- 3. MODAL PILIH PAKET LANGGANAN PREMIUM -->
     <UModal
       v-model:open="isPlanModalOpen"
       :ui="{ content: 'sm:max-w-2xl md:max-w-3xl' }"
@@ -687,7 +697,6 @@ const formatRupiah = (val: number) => {
     >
       <template #content>
         <div class="p-6 sm:p-7 space-y-6">
-          <!-- Modal Header -->
           <div class="flex items-start justify-between gap-4 border-b border-neutral-100 dark:border-neutral-800 pb-4">
             <div class="flex items-center gap-3.5">
               <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
@@ -712,7 +721,7 @@ const formatRupiah = (val: number) => {
             />
           </div>
 
-          <!-- Jika Pengguna Belum Login -->
+          <!-- Jika Belum Login -->
           <div v-if="!user" class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center space-y-3">
             <UIcon name="i-lucide-user-x" class="w-8 h-8 text-amber-500 mx-auto" />
             <div class="space-y-1">
@@ -734,7 +743,7 @@ const formatRupiah = (val: number) => {
             </UButton>
           </div>
 
-          <!-- Pilihan Paket (Radio Cards) -->
+          <!-- Pilihan Paket -->
           <div v-else class="space-y-4">
             <div class="space-y-3">
               <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">
@@ -748,38 +757,42 @@ const formatRupiah = (val: number) => {
                   class="relative p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between"
                   :class="selectedPlanId === plan.id
                     ? 'border-amber-500 bg-amber-500/10 dark:bg-amber-500/15 shadow-sm'
-                    : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/40'"
+                    : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700'"
                   @click="selectPlan(plan.id)"
                 >
-                  <!-- Badge Rekomendasi / Populer -->
-                  <div class="flex items-center justify-between gap-1 mb-2">
-                    <UBadge
-                      :color="plan.badgeColor"
-                      variant="subtle"
-                      size="xs"
-                      class="font-extrabold text-[10px]"
-                    >
-                      {{ plan.badge }}
-                    </UBadge>
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between gap-1">
+                      <UBadge
+                        :color="plan.badgeColor"
+                        variant="subtle"
+                        size="xs"
+                        class="font-bold text-[10px]"
+                      >
+                        {{ plan.badge }}
+                      </UBadge>
+                      <div
+                        class="w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all"
+                        :class="selectedPlanId === plan.id ? 'border-amber-500 bg-amber-500' : 'border-neutral-300 dark:border-neutral-700'"
+                      >
+                        <div v-if="selectedPlanId === plan.id" class="w-1.5 h-1.5 rounded-full bg-white" />
+                      </div>
+                    </div>
 
-                    <div
-                      class="w-5 h-5 rounded-full border flex items-center justify-center transition-colors"
-                      :class="selectedPlanId === plan.id
-                        ? 'border-amber-500 bg-amber-500 text-white'
-                        : 'border-neutral-300 dark:border-neutral-600'"
-                    >
-                      <UIcon v-if="selectedPlanId === plan.id" name="i-lucide-check" class="w-3.5 h-3.5 font-bold" />
+                    <div>
+                      <h4 class="font-black text-sm text-neutral-900 dark:text-white leading-tight">
+                        {{ plan.name }}
+                      </h4>
+                      <p class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                        {{ plan.description }}
+                      </p>
                     </div>
                   </div>
 
-                  <div class="space-y-1">
-                    <div class="text-sm font-black text-neutral-900 dark:text-white">
-                      {{ plan.durationDays }} Hari
-                    </div>
-                    <div class="text-lg font-black text-amber-600 dark:text-amber-400">
+                  <div class="pt-3 border-t border-neutral-100 dark:border-neutral-800/80 mt-3">
+                    <div class="text-base font-black text-neutral-900 dark:text-white">
                       {{ plan.priceLabel }}
                     </div>
-                    <div class="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    <div class="text-[10px] text-neutral-400 font-medium">
                       {{ plan.dailyPrice }}
                     </div>
                   </div>
@@ -787,15 +800,11 @@ const formatRupiah = (val: number) => {
               </div>
             </div>
 
-            <!-- Metode Pembayaran: QRIS Only -->
-            <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 space-y-2.5">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Metode Pembayaran</span>
-                <UBadge color="primary" variant="subtle" size="xs" class="font-bold flex items-center gap-1">
-                  <UIcon name="i-lucide-check-circle-2" class="w-3.5 h-3.5" />
-                  Instan & Otomatis
-                </UBadge>
-              </div>
+            <!-- Metode Pembayaran QRIS Info -->
+            <div class="space-y-2 pt-2">
+              <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">
+                Metode Pembayaran
+              </label>
 
               <div class="p-3 rounded-xl border border-primary/30 bg-white dark:bg-neutral-900 flex items-center justify-between">
                 <div class="flex items-center gap-3">
@@ -816,7 +825,7 @@ const formatRupiah = (val: number) => {
               </div>
             </div>
 
-            <!-- Pesan Error jika ada -->
+            <!-- Pesan Error -->
             <div v-if="paymentError" class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
               <UIcon name="i-lucide-alert-circle" class="w-4 h-4 flex-shrink-0" />
               <span>{{ paymentError }}</span>
@@ -862,9 +871,7 @@ const formatRupiah = (val: number) => {
       </template>
     </UModal>
 
-    <!-- ==================================================== -->
-    <!-- 4. MODAL DETAIL PEMBAYARAN QRIS (CHECKOUT)           -->
-    <!-- ==================================================== -->
+    <!-- 4. MODAL DETAIL PEMBAYARAN QRIS (CHECKOUT) -->
     <UModal
       v-model:open="isPaymentModalOpen"
       :ui="{ content: 'sm:max-w-xl md:max-w-2xl' }"
@@ -946,7 +953,7 @@ const formatRupiah = (val: number) => {
               </UButton>
             </div>
 
-            <!-- Tombol Bantuan Simulator Pembayaran Sandbox (Khusus Admin) -->
+            <!-- Tombol Simulator Sandbox (Admin) -->
             <div v-if="isAdmin" class="pt-3 border-t border-neutral-100 dark:border-neutral-800">
               <button
                 type="button"
@@ -964,9 +971,7 @@ const formatRupiah = (val: number) => {
       </template>
     </UModal>
 
-    <!-- ==================================================== -->
-    <!-- 5. MODAL SUKSES AKTIVASI MEMBER PREMIUM              -->
-    <!-- ==================================================== -->
+    <!-- 5. MODAL SUKSES AKTIVASI MEMBER PREMIUM -->
     <UModal
       v-model:open="isSuccessModalOpen"
       :ui="{ content: 'sm:max-w-lg md:max-w-xl' }"

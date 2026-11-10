@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useAuth } from '~/composables/useAuth'
+import { membershipService } from '~/services/membership-service'
+
 interface OrderItem {
   id: string
   paymentId?: string
@@ -18,86 +21,51 @@ interface OrderItem {
   settledAt?: string
 }
 
-const user = ref({
-  name: 'Admin Theater Idol',
-  email: 'admin@theater-idol.web.id',
-  labels: ['admin']
-})
-const isAdmin = computed(() => true)
+const router = useRouter()
+const { state } = useAuth()
+const user = computed(() => state.user)
+const isAdmin = computed(() => state.isAdmin)
 const isAuthLoading = ref(false)
 
-const orders = ref<OrderItem[]>([
-  {
-    id: 'PREM-1741234500000-1021',
-    paymentId: 'pay_demo_98231',
-    userId: 'user-1',
-    userName: 'Dimas Wicaksono',
-    userEmail: 'dimas@example.com',
-    planId: 'plan_14d',
-    planName: 'Member Premium 14 Hari',
-    durationDays: 14,
-    amount: 20000,
-    method: 'QRIS',
-    status: 'completed',
-    createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-    paidAt: new Date(Date.now() - 2 * 3600 * 1000 + 120000).toISOString(),
-    settledAt: new Date(Date.now() - 2 * 3600 * 1000 + 120000).toISOString()
-  },
-  {
-    id: 'PREM-1741234100000-4491',
-    paymentId: 'pay_demo_98230',
-    userId: 'user-2',
-    userName: 'Siti Rahma',
-    userEmail: 'siti@example.com',
-    planId: 'plan_30d',
-    planName: 'Member Premium 30 Hari',
-    durationDays: 30,
-    amount: 30000,
-    method: 'QRIS',
-    status: 'completed',
-    createdAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
-    paidAt: new Date(Date.now() - 6 * 3600 * 1000 + 90000).toISOString(),
-    settledAt: new Date(Date.now() - 6 * 3600 * 1000 + 90000).toISOString()
-  },
-  {
-    id: 'PREM-1741233800000-8812',
-    paymentId: 'pay_demo_98229',
-    userId: 'user-3',
-    userName: 'Kevin Pratama',
-    userEmail: 'kevin@example.com',
-    planId: 'plan_7d',
-    planName: 'Member Premium 7 Hari',
-    durationDays: 7,
-    amount: 12000,
-    method: 'QRIS',
-    status: 'pending',
-    createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    paymentLinkUrl: 'https://example.com/mock-qris-payment'
-  },
-  {
-    id: 'PREM-1741230000000-5541',
-    paymentId: 'pay_demo_98220',
-    userId: 'user-4',
-    userName: 'Andi Saputra',
-    userEmail: 'andi@example.com',
-    planId: 'plan_14d',
-    planName: 'Member Premium 14 Hari',
-    durationDays: 14,
-    amount: 20000,
-    method: 'QRIS',
-    status: 'expired',
-    createdAt: new Date(Date.now() - 26 * 3600 * 1000).toISOString(),
-    expiresAt: new Date(Date.now() - 25 * 3600 * 1000).toISOString()
-  }
-])
-
+const orders = ref<OrderItem[]>([])
 const isOrdersLoading = ref(false)
 const isActionLoading = ref(false)
-const ordersError = ref(null)
-const ordersNotice = ref(null)
-const fetchOrders = async () => {}
+const ordersError = ref<string | null>(null)
+const ordersNotice = ref<string | null>(null)
 
-const updateOrderStatus = async (orderId, newStatus) => {
+const fetchOrders = async () => {
+  isOrdersLoading.value = true
+  ordersError.value = null
+  try {
+    const res = await membershipService.adminGetAllTransactions(1, 100)
+    if (res.data && Array.isArray(res.data)) {
+      orders.value = res.data.map(t => ({
+        id: t.order_id,
+        paymentId: t.payment_id || undefined,
+        userId: String(t.user_id),
+        userName: t.user?.name || 'Pengguna',
+        userEmail: t.user?.email || '',
+        planId: t.plan_code,
+        planName: `Membership ${t.days || 7} Hari`,
+        durationDays: t.days || 7,
+        amount: t.amount,
+        method: t.payment_method?.toUpperCase() || 'QRIS',
+        paymentLinkUrl: t.payment_link_url || undefined,
+        status: (t.status || 'pending') as any,
+        createdAt: t.created_at || new Date().toISOString(),
+        paidAt: t.paid_at || undefined,
+        expiresAt: t.expires_at || undefined,
+        settledAt: t.paid_at || undefined
+      }))
+    }
+  } catch (err: any) {
+    ordersError.value = err?.message || 'Gagal memuat transaksi'
+  } finally {
+    isOrdersLoading.value = false
+  }
+}
+
+const updateOrderStatus = async (orderId: string, newStatus: any) => {
   const o = orders.value.find(i => i.id === orderId)
   if (o) {
     o.status = newStatus
@@ -129,6 +97,10 @@ useHead({
 
 // Lifecycle
 onMounted(async () => {
+  if (import.meta.client && (!user.value || !isAdmin.value)) {
+    router.replace('/')
+    return
+  }
   await fetchOrders()
 })
 

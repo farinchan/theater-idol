@@ -1,85 +1,20 @@
 <script setup lang="ts">
-const appName = ref('Theater Idol')
+import { useAuth } from '~/composables/useAuth'
+import { showService } from '~/services/show-service'
+import type { ShowListItem } from '~/types/show'
+
+const { state } = useAuth()
+const user = computed(() => state.user)
+const isAdmin = computed(() => state.isAdmin)
+const isPremium = computed(() => state.isPremium)
+
 const isReplayEnabled = ref(true)
 const isReplayRequireLogin = ref(false)
 const isReplayRequirePremium = ref(false)
 const replayNotice = ref('Fitur Replay sedang ditutup.')
 
-const user = ref({
-  $id: 'user-admin',
-  name: 'Admin Theater Idol',
-  email: 'admin@theater-idol.web.id',
-  prefs: { avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=JktRuby&backgroundColor=d61515' }
-})
-const isAdmin = computed(() => true)
-const isPremium = computed(() => true)
-
-const isShowsLoading = ref(false)
-const isSetlistsLoading = ref(false)
-
-const setlists = ref([
-  {
-    $id: 'setlist-1',
-    id: 1,
-    title_id: 'Cara Meminum Ramune',
-    title_jp: 'Ramune no Nomikata (ラムネの飲み方)',
-    image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-2',
-    id: 2,
-    title_id: 'Aturan Anti Cinta',
-    title_jp: 'Renai Kinshi Jourei (恋愛禁止条例)',
-    image_url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-3',
-    id: 3,
-    title_id: 'Tunas Dibalik Seragam',
-    title_jp: 'Seifuku no Me (制服の芽)',
-    image_url: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-4',
-    id: 4,
-    title_id: 'Pajama Drive',
-    title_jp: 'Pajama Drive (パジャマドライブ)',
-    image_url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=800&auto=format&fit=crop&q=80'
-  }
-])
-
-const appwriteShows = ref([
-  {
-    $id: 'show-1',
-    id: 1,
-    setlist_id: 'setlist-1',
-    date: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-    time: '19:00',
-    description: 'Pertunjukan spesial penuh energi Ramune no Nomikata.',
-    lineup: 'Freya Jayawardana, Angelina Christy, Shania Gracia, Marsha Lenathea, Feni Fitriyanti, Gita Sekar',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  },
-  {
-    $id: 'show-2',
-    id: 2,
-    setlist_id: 'setlist-2',
-    date: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-    time: '14:00',
-    description: 'Setlist klasik Renai Kinshi Jourei dengan lagu-lagu nostalgia seperti Nagai Hikari dan Heart Gata Virus.',
-    lineup: 'Shania Gracia, Feni Fitriyanti, Gita Sekar, Indah Cahya, Adel Reva, Ella, Flora Shafiq, Oniel',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  },
-  {
-    $id: 'show-3',
-    id: 3,
-    setlist_id: 'setlist-3',
-    date: new Date(Date.now() - 72 * 3600 * 1000).toISOString(),
-    time: '19:00',
-    description: 'Pertunjukan Tunas Dibalik Seragam yang berkesan dan penuh kejutan.',
-    lineup: 'Freya Jayawardana, Angelina Christy, Marsha Lenathea, Kathrina Irene, Jessi',
-    replay_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-  }
-])
+const isShowsLoading = ref(true)
+const shows = ref<ShowListItem[]>([])
 
 useSeoMeta({
   title: 'Katalog Video Replay Pertunjukan Theater Idol',
@@ -107,13 +42,6 @@ useHead({
       })
     }
   ]
-})
-
-// Muat data show & setlist (SSR & Client Hydration)
-// Hardcoded replay data ready
-
-onMounted(() => {
-  
 })
 
 // State Filter & Search
@@ -176,59 +104,55 @@ const formatIndonesianTime = (timeVal?: string, dateVal?: string): string => {
   return timeVal || '19:00 WIB'
 }
 
-// Helper Deteksi YouTube ID
-const getYouTubeVideoId = (url?: string): string | null => {
-  if (!url) return null
-  const trimmed = url.trim()
-  const shortMatch = trimmed.match(/^https?:\/\/(?:www\.)?youtu\.be\/([a-zA-Z0-9_-]{11})/i)
-  if (shortMatch) return shortMatch[1]
-  const fullMatch = trimmed.match(
-    /^https?:\/\/(?:www\.|m\.)?youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|v\/)([a-zA-Z0-9_-]{11})/i
-  )
-  if (fullMatch) return fullMatch[1]
-  return null
+const loadData = async () => {
+  isShowsLoading.value = true
+  try {
+    const res = await showService.getAll(1, 100)
+    if (res?.data) {
+      shows.value = res.data
+      isReplayEnabled.value = true
+    }
+  } catch (err: any) {
+    if (err?.response?.status === 403) {
+      isReplayEnabled.value = false
+      replayNotice.value = err?.response?.data?.message || 'Fitur pertunjukan sedang dinonaktifkan sementara.'
+    }
+  } finally {
+    isShowsLoading.value = false
+  }
 }
 
-// Ambil semua show yang:
-// 1. Sudah lewat (timestamp <= now)
-// 2. replay_url terisi dan valid
+onMounted(() => {
+  loadData()
+})
+
+// Ambil semua show yang sudah lewat
 const replayShows = computed(() => {
   const now = Date.now()
 
-  return appwriteShows.value
+  return shows.value
     .filter(show => {
-      const hasReplayUrl = Boolean(show.replay_url && show.replay_url.trim())
       const ts = getShowTimestamp(show.date, show.time)
-      const isPast = ts > 0 && ts <= now
-      return isPast && hasReplayUrl
+      return ts === 0 || ts <= now
     })
     .map(show => {
-      const related = setlists.value.find(
-        s => s.$id === show.setlist_id || String(s.id) === String(show.setlist_id)
-      )
       const ts = getShowTimestamp(show.date, show.time)
       const lineupList = show.lineup
         ? show.lineup.split(/[\n,]+/).map(m => m.trim()).filter(Boolean)
         : []
 
-      const ytId = getYouTubeVideoId(show.replay_url)
-      const ytThumbnail = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : ''
-      const mediaType = show.replay_url?.toLowerCase().includes('.mp4') ? 'MP4' : 'Video'
-
       return {
-        id: show.$id || String(show.id),
-        title: related?.title_id || 'Pertunjukan Teater',
-        originalTitle: related?.title_jp || '',
-        category: related?.title_id || 'Teater',
+        id: String(show.id),
+        title: show.setlist?.title_id || 'Pertunjukan Teater',
+        originalTitle: show.setlist?.title_jp || '',
+        category: show.setlist?.title_id || 'Teater',
         date: formatIndonesianDate(show.date),
         time: formatIndonesianTime(show.time, show.date),
         timestamp: ts,
-        description: show.description || (related ? `Rekaman pertunjukan setlist ${related.title_id} yang dibawakan langsung dari panggung teater.` : 'Rekaman arsip pertunjukan panggung teater.'),
+        description: show.description || (show.setlist ? `Rekaman pertunjukan setlist ${show.setlist.title_id} yang dibawakan langsung dari panggung teater.` : 'Rekaman arsip pertunjukan panggung teater.'),
         lineup: lineupList,
-        poster: related?.image_url || ytThumbnail,
-        replay_url: show.replay_url,
-        mediaType,
-        isYouTube: Boolean(ytId)
+        poster: resolveMediaUrl(show.setlist?.image),
+        mediaType: 'Video'
       }
     })
     .sort((a, b) => b.timestamp - a.timestamp)
@@ -248,23 +172,19 @@ const categories = computed(() => {
 const filteredReplays = computed(() => {
   return replayShows.value.filter(item => {
     const matchesCategory = selectedCategory.value === 'Semua' || item.category === selectedCategory.value
-    const q = searchQuery.value.trim().toLowerCase()
-    if (!q) return matchesCategory
+    if (!matchesCategory) return false
 
-    const matchesSearch =
-      item.title.toLowerCase().includes(q) ||
-      item.originalTitle.toLowerCase().includes(q) ||
-      item.description.toLowerCase().includes(q) ||
-      item.date.toLowerCase().includes(q) ||
-      item.lineup.some(m => m.toLowerCase().includes(q))
+    if (searchQuery.value.trim()) {
+      const q = searchQuery.value.toLowerCase()
+      const matchesTitle = item.title.toLowerCase().includes(q)
+      const matchesOrig = item.originalTitle?.toLowerCase().includes(q)
+      const matchesDesc = item.description?.toLowerCase().includes(q)
+      const matchesLineup = item.lineup.some(m => m.toLowerCase().includes(q))
+      return matchesTitle || matchesOrig || matchesDesc || matchesLineup
+    }
 
-    return matchesCategory && matchesSearch
+    return true
   })
-})
-
-// Featured Replay: Replay pertunjukan paling terbaru
-const featuredReplay = computed(() => {
-  return replayShows.value.length > 0 ? replayShows.value[0] : null
 })
 </script>
 
@@ -317,10 +237,10 @@ const featuredReplay = computed(() => {
         LOGIN DIPERLUKAN
       </UBadge>
       <h2 class="text-2xl font-black text-neutral-900 dark:text-white">
-        Akses Arsip Replay Terbatas
+        Akses Video Replay Terbatas
       </h2>
       <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-        Katalog dan video rekaman pertunjukan teater hanya dapat diakses oleh pengguna yang telah masuk ke akun. Silakan masuk terlebih dahulu untuk menonton.
+        Video rekaman pertunjukan teater hanya dapat disaksikan oleh pengguna yang telah masuk ke akun. Silakan masuk terlebih dahulu untuk menonton.
       </p>
     </div>
     <div class="flex items-center justify-center gap-3 pt-2">
@@ -357,7 +277,7 @@ const featuredReplay = computed(() => {
         Fitur Eksklusif Premium
       </h2>
       <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-        Katalog video rekaman pertunjukan teater ini dikhususkan bagi Member Premium. Aktifkan paket langganan Anda untuk mendapatkan akses menonton seluruh video replay.
+        Video rekaman pertunjukan teater ini dikhususkan bagi Member Premium. Aktifkan paket langganan Anda untuk mendapatkan akses menonton seluruh video replay.
       </p>
     </div>
     <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -381,227 +301,141 @@ const featuredReplay = computed(() => {
     </div>
   </div>
 
-  <!-- Konten Katalog Replay -->
+  <!-- Normal Content -->
   <div v-else class="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl w-full mx-auto">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-6">
       <div>
-        <h1 class="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3">
+        <h1 class="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3 text-neutral-900 dark:text-white">
           <UIcon name="i-lucide-play-circle" class="w-8 h-8 text-primary" />
-          Replay & Video Show Teater
+          Katalog Video Replay
         </h1>
         <p class="text-neutral-500 dark:text-neutral-400 text-sm mt-1">
-          Koleksi rekaman pertunjukan teater resmi untuk ditonton kembali kapan saja.
+          Koleksi arsip rekaman video pertunjukan teater idol lengkap dengan kualitas audio visual HD jernih.
         </p>
       </div>
 
-      <div class="w-full sm:w-72">
-        <UInput
-          v-model="searchQuery"
-          icon="i-lucide-search"
-          placeholder="Cari arsip replay..."
+      <div class="flex items-center gap-2">
+        <UButton
+          to="/jadwal"
+          color="neutral"
+          variant="outline"
           size="sm"
-          class="w-full"
+          icon="i-lucide-calendar"
+          label="Lihat Jadwal Show"
+          class="rounded-xl font-bold cursor-pointer hover:border-primary/50"
         />
       </div>
     </div>
 
-    <!-- Category Pills Filter (Jika ada lebih dari 1 kategori) -->
-    <div v-if="categories.length > 1" class="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-      <button
-        v-for="cat in categories"
-        :key="cat"
-        :class="[
-          'px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer',
-          selectedCategory === cat
-            ? 'bg-primary text-white shadow-sm shadow-primary/30 font-bold'
-            : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 hover:border-primary/50 hover:text-primary'
-        ]"
-        @click="selectedCategory = cat"
-      >
-        {{ cat }}
-      </button>
+    <!-- Filter & Search Bar -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="relative w-full sm:w-80">
+        <UIcon name="i-lucide-search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Cari setlist, lagu, atau member..."
+          class="w-full pl-10 pr-4 py-2 text-xs rounded-xl bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700/80 focus:outline-none focus:border-primary text-neutral-900 dark:text-white placeholder-neutral-400 transition-colors"
+        />
+      </div>
+
+      <!-- Categories Pills -->
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+        <button
+          v-for="cat in categories"
+          :key="cat"
+          type="button"
+          :class="[
+            'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer',
+            selectedCategory === cat
+              ? 'bg-primary text-white shadow-xs'
+              : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200/60 dark:border-neutral-700/60'
+          ]"
+          @click="selectedCategory = cat"
+        >
+          {{ cat }}
+        </button>
+      </div>
     </div>
 
     <!-- Loading State -->
-    <div v-if="isShowsLoading && replayShows.length === 0" class="py-16 text-center space-y-3">
-      <div class="w-10 h-10 rounded-full border-3 border-primary border-t-transparent animate-spin mx-auto" />
-      <p class="text-sm font-medium text-neutral-500">Memuat koleksi replay teater...</p>
+    <div v-if="isShowsLoading" class="p-12 text-center space-y-3">
+      <div class="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto" />
+      <p class="text-xs text-neutral-500">Memuat katalog video replay...</p>
     </div>
 
-    <!-- Empty State: Belum ada show yang selesai dengan replay_url -->
+    <!-- Empty State -->
     <div
-      v-else-if="replayShows.length === 0"
-      class="p-10 sm:p-14 text-center rounded-3xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 space-y-4 max-w-2xl mx-auto"
+      v-else-if="filteredReplays.length === 0"
+      class="p-12 text-center rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 space-y-3"
     >
-      <div class="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
-        <UIcon name="i-lucide-video-off" class="w-7 h-7" />
+      <div class="w-12 h-12 rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-neutral-400 flex items-center justify-center mx-auto">
+        <UIcon name="i-lucide-video-off" class="w-6 h-6" />
       </div>
-      <div class="space-y-1.5">
-        <h3 class="text-lg sm:text-xl font-bold text-neutral-900 dark:text-white">
-          Belum Ada Video Replay Tersedia
-        </h3>
-        <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-          Pertunjukan teater yang telah selesai dan memiliki rekaman stream akan otomatis muncul pada halaman ini.
-        </p>
-      </div>
-      <div class="pt-2">
-        <UButton
-          to="/jadwal"
-          color="primary"
-          variant="solid"
-          size="md"
-          icon="i-lucide-calendar-days"
-          label="Lihat Jadwal Pertunjukan Mendatang"
-          class="rounded-xl font-bold cursor-pointer shadow-sm shadow-primary/20"
-        />
-      </div>
+      <h3 class="font-bold text-neutral-900 dark:text-white text-base">Tidak Ada Video Replay Ditemukan</h3>
+      <p class="text-xs text-neutral-500 max-w-sm mx-auto">
+        Belum ada rekaman show yang tersedia untuk pencarian atau kategori ini.
+      </p>
     </div>
 
-    <!-- Konten Replay Tersedia -->
-    <div v-else class="space-y-8">
-      <!-- Featured Replay Hero Banner -->
-      <div
-        v-if="featuredReplay && selectedCategory === 'Semua' && !searchQuery.trim()"
-        class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-red-950 via-neutral-900 to-neutral-950 border border-neutral-800 p-6 sm:p-10 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
+    <!-- Video Grid -->
+    <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <NuxtLink
+        v-for="item in filteredReplays"
+        :key="item.id"
+        :to="`/replay/${item.id}`"
+        class="group flex flex-col rounded-2xl overflow-hidden bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-primary/50 shadow-xs hover:shadow-md transition-all cursor-pointer"
       >
-        <div class="max-w-xl space-y-4">
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-primary/20 text-white border border-primary/40">
-            <UIcon name="i-lucide-sparkles" class="w-3.5 h-3.5 text-primary" />
-            Replay Terbaru Teater
-          </div>
-          <div>
-            <h2 class="text-2xl sm:text-3xl font-black leading-tight">
-              {{ featuredReplay.title }}
-            </h2>
-            <p v-if="featuredReplay.originalTitle" class="text-xs text-neutral-400 mt-0.5">
-              {{ featuredReplay.originalTitle }}
-            </p>
-          </div>
-          <p class="text-neutral-300 text-xs sm:text-sm leading-relaxed line-clamp-3">
-            {{ featuredReplay.description }}
-          </p>
-          <div class="flex flex-wrap items-center gap-3 text-xs text-neutral-300">
-            <span class="flex items-center gap-1.5">
-              <UIcon name="i-lucide-calendar" class="w-4 h-4 text-primary" />
-              {{ featuredReplay.date }}
-            </span>
-            <span>&bull;</span>
-            <span class="flex items-center gap-1.5">
-              <UIcon name="i-lucide-clock" class="w-4 h-4 text-primary" />
-              {{ featuredReplay.time }}
-            </span>
-          </div>
-        </div>
-
-        <div class="flex-shrink-0 w-full sm:w-auto">
-          <UButton
-            :to="`/replay/${featuredReplay.id}`"
-            color="primary"
-            size="lg"
-            icon="i-lucide-play"
-            label="Putar Show Sekarang"
-            class="shadow-lg shadow-primary/40 font-bold w-full sm:w-auto cursor-pointer"
+        <!-- Poster / Thumbnail (Rasio 16:9) -->
+        <div class="aspect-video w-full relative overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+          <img
+            v-if="item.poster"
+            :src="item.poster"
+            :alt="item.title"
+            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
           />
+          <div v-else class="w-full h-full flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-600 gap-1.5 p-4 text-center">
+            <UIcon name="i-lucide-play-circle" class="w-10 h-10 text-primary/60" />
+            <span class="text-xs font-bold">{{ item.title }}</span>
+          </div>
+
+          <!-- Play button overlay -->
+          <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <div class="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+              <UIcon name="i-lucide-play" class="w-6 h-6 ml-0.5" />
+            </div>
+          </div>
         </div>
-      </div>
 
-      <!-- No Filtered Results State -->
-      <div v-if="filteredReplays.length === 0" class="py-12 text-center space-y-2">
-        <UIcon name="i-lucide-search-x" class="w-10 h-10 text-neutral-400 mx-auto" />
-        <h4 class="font-bold text-sm text-neutral-800 dark:text-neutral-200">Tidak ada replay yang sesuai</h4>
-        <p class="text-xs text-neutral-500">Coba ubah kata kunci pencarian atau kategori filter.</p>
-      </div>
-
-      <!-- Replays Catalog Grid -->
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <UCard
-          v-for="item in filteredReplays"
-          :key="item.id"
-          class="hover:border-primary/50 transition-all duration-200 overflow-hidden flex flex-col justify-between group"
-        >
-          <template #header>
-            <!-- Thumbnail Box -->
-            <NuxtLink
-              :to="`/replay/${item.id}`"
-              class="relative -mx-6 -mt-6 h-48 bg-neutral-900 overflow-hidden flex items-center justify-center block cursor-pointer group/thumb"
-            >
-              <!-- Poster Image -->
-              <img
-                v-if="item.poster"
-                :src="item.poster"
-                :alt="item.title"
-                class="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300 opacity-90"
-              />
-              <div
-                v-else
-                class="w-full h-full bg-gradient-to-br from-red-950 via-neutral-900 to-neutral-950 flex items-center justify-center"
-              >
-                <UIcon name="i-lucide-music-4" class="w-12 h-12 text-neutral-600" />
-              </div>
-
-              <!-- Overlay Gradient -->
-              <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-              <!-- Play Button Center Hover -->
-              <div class="absolute inset-0 flex items-center justify-center">
-                <div class="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white group-hover/thumb:scale-110 group-hover/thumb:bg-primary transition-all shadow-xl">
-                  <UIcon name="i-lucide-play" class="w-7 h-7 ml-0.5 text-white" />
-                </div>
-              </div>
-
-              <!-- Bottom Badges -->
-              <div class="absolute bottom-2.5 left-3 flex items-center text-[11px] font-mono">
-                <span class="bg-black/75 backdrop-blur-sm px-2 py-0.5 rounded text-neutral-200 flex items-center gap-1 font-semibold">
-                  <UIcon name="i-lucide-clock" class="w-3 h-3 text-primary" />
-                  {{ item.time }}
-                </span>
-              </div>
-            </NuxtLink>
-          </template>
-
-          <div class="space-y-3 pt-2">
-            <div class="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
-              <span class="flex items-center gap-1 font-medium">
-                <UIcon name="i-lucide-calendar" class="w-3.5 h-3.5 text-primary" />
-                {{ item.date }}
-              </span>
-              <span class="text-[10px] uppercase font-bold text-neutral-400">
-                Teater
-              </span>
+        <!-- Meta Content -->
+        <div class="p-4 space-y-2 flex-1 flex flex-col justify-between">
+          <div class="space-y-1">
+            <div class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-neutral-500">
+              <UIcon name="i-lucide-calendar-days" class="w-3.5 h-3.5 text-primary" />
+              <span>{{ item.date }}</span>
+              <span>&bull;</span>
+              <span>{{ item.time }}</span>
             </div>
 
-            <div>
-              <NuxtLink :to="`/replay/${item.id}`">
-                <h3 class="font-bold text-base text-neutral-900 dark:text-white leading-snug group-hover:text-primary transition-colors cursor-pointer line-clamp-1">
-                  {{ item.title }}
-                </h3>
-              </NuxtLink>
-              <p v-if="item.originalTitle" class="text-[11px] text-neutral-400 italic line-clamp-1 mt-0.5">
-                {{ item.originalTitle }}
-              </p>
-            </div>
-
-            <p class="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed line-clamp-2">
+            <h3 class="font-bold text-neutral-900 dark:text-white text-base group-hover:text-primary transition-colors line-clamp-1">
+              {{ item.title }}
+            </h3>
+            <p v-if="item.originalTitle" class="text-xs text-neutral-400 italic line-clamp-1">
+              {{ item.originalTitle }}
+            </p>
+            <p class="text-xs text-neutral-600 dark:text-neutral-400 line-clamp-2 mt-1">
               {{ item.description }}
             </p>
-
-            <!-- Lineup Member Chips -->
-            <div v-if="item.lineup.length > 0" class="flex flex-wrap gap-1 pt-1">
-              <span
-                v-for="mem in item.lineup.slice(0, 4)"
-                :key="mem"
-                class="px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-[10px] font-medium text-neutral-600 dark:text-neutral-300"
-              >
-                {{ mem }}
-              </span>
-              <span v-if="item.lineup.length > 4" class="px-1.5 py-0.5 text-[10px] text-neutral-400">
-                +{{ item.lineup.length - 4 }} lagi
-              </span>
-            </div>
           </div>
-        </UCard>
-      </div>
+
+          <div v-if="item.lineup && item.lineup.length" class="pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-500 flex items-center gap-1">
+            <span class="font-semibold text-neutral-400">Lineup:</span>
+            <span class="truncate">{{ item.lineup.slice(0, 4).join(', ') }}{{ item.lineup.length > 4 ? ` +${item.lineup.length - 4}` : '' }}</span>
+          </div>
+        </div>
+      </NuxtLink>
     </div>
   </div>
 </template>

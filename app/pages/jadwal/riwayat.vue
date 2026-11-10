@@ -1,68 +1,9 @@
 <script setup lang="ts">
-const isShowsLoading = ref(false)
-const setlists = ref([
-  {
-    $id: 'setlist-1',
-    id: 1,
-    title_id: 'Cara Meminum Ramune',
-    title_jp: 'Ramune no Nomikata (ラムネの飲み方)',
-    image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-2',
-    id: 2,
-    title_id: 'Aturan Anti Cinta',
-    title_jp: 'Renai Kinshi Jourei (恋愛禁止条例)',
-    image_url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-3',
-    id: 3,
-    title_id: 'Tunas Dibalik Seragam',
-    title_jp: 'Seifuku no Me (制服の芽)',
-    image_url: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    $id: 'setlist-4',
-    id: 4,
-    title_id: 'Pajama Drive',
-    title_jp: 'Pajama Drive (パジャマドライブ)',
-    image_url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=800&auto=format&fit=crop&q=80'
-  }
-])
+import { showService } from '~/services/show-service'
+import type { ShowListItem } from '~/types/show'
 
-const appwriteShows = ref([
-  {
-    $id: 'show-1',
-    id: 1,
-    setlist_id: 'setlist-1',
-    date: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
-    time: '19:00',
-    description: 'Pertunjukan penuh energi dan kesegaran masa muda khas setlist Ramune no Nomikata.',
-    lineup: 'Freya Jayawardana, Angelina Christy, Shania Gracia, Marsha Lenathea, Feni Fitriyanti, Gita Sekar',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  },
-  {
-    $id: 'show-2',
-    id: 2,
-    setlist_id: 'setlist-2',
-    date: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-    time: '14:00',
-    description: 'Setlist klasik Renai Kinshi Jourei dengan lagu-lagu nostalgia seperti Nagai Hikari dan Heart Gata Virus.',
-    lineup: 'Shania Gracia, Feni Fitriyanti, Gita Sekar, Indah Cahya, Adel Reva, Ella, Flora Shafiq, Oniel',
-    replay_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  },
-  {
-    $id: 'show-3',
-    id: 3,
-    setlist_id: 'setlist-3',
-    date: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-    time: '19:00',
-    description: 'Pertunjukan Tunas Dibalik Seragam yang berkesan dan penuh kejutan.',
-    lineup: 'Freya Jayawardana, Angelina Christy, Marsha Lenathea, Kathrina Irene, Jessi',
-    replay_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-  }
-])
+const isShowsLoading = ref(true)
+const shows = ref<ShowListItem[]>([])
 
 useSeoMeta({
   title: 'Riwayat Show Theater Idol Sebelumnya',
@@ -73,17 +14,9 @@ useSeoMeta({
   ogType: 'website'
 })
 
-// Ambil data jadwal show & setlist dari database tablesDB (SSR & Client Hydration)
-// Hardcoded riwayat data ready
-
-onMounted(() => {
-  
-})
-
 // Filter & Pencarian
 const searchQuery = ref('')
 const selectedMonth = ref('Semua')
-
 
 // Helper formatters
 const getFullFormattedDate = (dateVal?: string): string => {
@@ -114,88 +47,6 @@ const getFormattedTime = (timeVal?: string, dateVal?: string): string => {
   return timeVal || '19:00 WIB'
 }
 
-// Data arsip riwayat pertunjukan yang telah selesai diselenggarakan
-const archiveSchedules = [
-  {
-    id: 'hist-1',
-    title: 'Cara Meminum Ramune - Senshuraku Final Show',
-    originalTitle: 'Ramune no Nomikata',
-    date: '2026-09-21T12:00:00.000Z',
-    time: '19:00 WIB',
-    month: 'September 2026',
-    description: 'Pertunjukan penutup megah dan emosional setlist Ramune no Nomikata yang dibawakan serentak oleh seluruh formasi member panggung utama.',
-    lineup: [
-      'Freya Jayawardana', 'Angelina Christy', 'Shania Gracia', 'Azizi Asadel',
-      'Marsha Lenathea', 'Feni Fitriyanti', 'Gita Sekar', 'Mutiara Azzahra',
-      'Kathrina Irene', 'Jessi', 'Lulu Salsabila', 'Indah Cahya',
-      'Adel Reva', 'Ella', 'Flora Shafiq', 'Oniel'
-    ],
-    poster: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
-    type: 'Senshuraku'
-  },
-  {
-    id: 'hist-2',
-    title: 'Tunas di Balik Kaca - Shonichi Premiere',
-    originalTitle: 'Kizuna wa Kimi no Tame ni',
-    date: '2026-09-14T12:00:00.000Z',
-    time: '19:00 WIB',
-    month: 'September 2026',
-    description: 'Panggung premiere pembuka membawakan formasi koreografi dan aransemen teater baru dengan antusiasme chant penonton.',
-    lineup: [
-      'Adel Reva', 'Ella', 'Lulu Salsabila', 'Indah Cahya',
-      'Kathrina Irene', 'Jessi', 'Flora Shafiq', 'Oniel',
-      'Freya Jayawardana', 'Christy', 'Gracia', 'Marsha'
-    ],
-    poster: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80',
-    type: 'Shonichi'
-  },
-  {
-    id: 'hist-3',
-    title: 'Aturan Anti Cinta - Special 12th Anniversary Stage',
-    originalTitle: 'Renai Kinshi Jourei',
-    date: '2026-08-24T12:00:00.000Z',
-    time: '19:00 WIB',
-    month: 'Agustus 2026',
-    description: 'Pementasan perayaan ulang tahun panggung teater dengan aransemen orkestrasi panggung megah dan bintang tamu spesial.',
-    lineup: [
-      'Shania Gracia', 'Feni Fitriyanti', 'Gita Sekar', 'Freya Jayawardana',
-      'Angelina Christy', 'Marsha Lenathea', 'Mutiara Azzahra', 'Zee'
-    ],
-    poster: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80',
-    type: 'Anniversary'
-  },
-  {
-    id: 'hist-4',
-    title: 'Seitansai Freya Jayawardana - Special Birthday Show',
-    originalTitle: 'Renai Kinshi Jourei',
-    date: '2026-08-15T12:00:00.000Z',
-    time: '19:00 WIB',
-    month: 'Agustus 2026',
-    description: 'Pertunjukan spesial perayaan ulang tahun Freya Jayawardana dengan surat cinta dari member dan chant spesial penonton.',
-    lineup: [
-      'Freya Jayawardana', 'Angelina Christy', 'Shania Gracia', 'Marsha Lenathea',
-      'Feni Fitriyanti', 'Gita Sekar', 'Kathrina Irene', 'Lulu Salsabila'
-    ],
-    poster: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80',
-    type: 'Seitansai'
-  },
-  {
-    id: 'hist-5',
-    title: 'Pajama Drive - Special Trainee Generation Stage',
-    originalTitle: 'Pajama Drive',
-    date: '2026-07-28T07:00:00.000Z',
-    time: '14:00 WIB',
-    month: 'Juli 2026',
-    description: 'Panggung penuh energi regenerasi muda membawakan nomor-nomor klasik Pajama Drive, Temodemo no Namida, dan Junjou Shugi.',
-    lineup: [
-      'Gendis', 'Erine', 'Oline', 'Aralie', 'Ribka', 'Cathy', 'Lana', 'Nayla'
-    ],
-    poster: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=800&auto=format&fit=crop&q=80',
-    type: 'Special Stage'
-  }
-]
-
-// Helper untuk menghitung timestamp pertunjukan dari tanggal dan jam
 const getShowTimestamp = (dateVal?: string, timeVal?: string): number => {
   if (!dateVal) return 0
   try {
@@ -218,51 +69,54 @@ const getShowTimestamp = (dateVal?: string, timeVal?: string): number => {
   return 0
 }
 
-// Gabungkan riwayat show dari database tablesDB (show yang sudah lewat < now) dengan data arsip
+const fetchHistory = async () => {
+  isShowsLoading.value = true
+  try {
+    const res = await showService.getAll(1, 100)
+    if (res.data) {
+      shows.value = res.data
+    }
+  } catch {
+    shows.value = []
+  } finally {
+    isShowsLoading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchHistory()
+})
+
+// Filter show yang sudah lewat
 const allHistorySchedules = computed(() => {
   const now = Date.now()
-  const dbPastShows: any[] = []
-
-  if (appwriteShows.value.length > 0) {
-    appwriteShows.value.forEach(s => {
+  return shows.value
+    .filter(s => {
       const ts = getShowTimestamp(s.date, s.time)
-      // Pertunjukan dari tablesDB yang tanggal & waktunya sudah berlalu (< now)
-      if (ts > 0 && ts < now) {
-        const related = setlists.value.find(set => set.$id === s.setlist_id || String(set.id) === String(s.setlist_id))
-        const lineupList = s.lineup ? s.lineup.split(',').map(m => m.trim()).filter(Boolean) : []
-        const monthYear = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date(ts))
+      return ts === 0 || ts < now
+    })
+    .map(s => {
+      const ts = getShowTimestamp(s.date, s.time)
+      const lineupList = s.lineup ? s.lineup.split(',').map(m => m.trim()).filter(Boolean) : []
+      const monthYear = ts > 0
+        ? new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date(ts))
+        : ''
 
-        dbPastShows.push({
-          id: s.$id || s.id,
-          title: related?.title_id || 'Pertunjukan Teater',
-          originalTitle: related?.title_jp || '',
-          date: s.date,
-          time: getFormattedTime(s.time, s.date),
-          month: monthYear,
-          description: s.description || (related ? `Pertunjukan setlist ${related.title_id}` : 'Arsip pertunjukan teater.'),
-          lineup: lineupList.length > 0 ? lineupList : ['Lineup arsip'],
-          poster: related?.image_url || '',
-          type: 'Show Selesai',
-          timestamp: ts
-        })
+      return {
+        id: s.id,
+        title: s.setlist?.title_id || 'Pertunjukan Teater',
+        originalTitle: s.setlist?.title_jp || '',
+        date: s.date,
+        time: getFormattedTime(s.time, s.date),
+        month: monthYear,
+        description: s.description || (s.setlist ? `Pertunjukan setlist ${s.setlist.title_id}` : 'Arsip pertunjukan teater.'),
+        lineup: lineupList.length > 0 ? lineupList : ['Lineup arsip'],
+        poster: resolveMediaUrl(s.setlist?.image),
+        type: 'Show Selesai',
+        timestamp: ts
       }
     })
-  }
-
-  // Jika ada riwayat pertunjukan asli dari database tablesDB, utamakan data database!
-  if (dbPastShows.length > 0) {
-    return dbPastShows.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-  }
-
-  // Fallback arsip bawaan jika database belum memiliki riwayat pertunjukan
-  const pastArchives = archiveSchedules
-    .filter(a => getShowTimestamp(a.date, a.time) < now)
-    .map(a => ({
-      ...a,
-      timestamp: getShowTimestamp(a.date, a.time)
-    }))
-
-  return pastArchives.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
 })
 
 // Tab filter bulan yang dinamis berdasarkan data riwayat yang ada
@@ -462,7 +316,7 @@ const filteredHistory = computed(() => {
         <!-- Action / Replay Button -->
         <div class="flex lg:flex-col items-center justify-end gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-neutral-100 dark:border-neutral-800">
           <UButton
-            to="/replay"
+            :to="`/replay/${show.id}`"
             color="neutral"
             variant="outline"
             size="xs"

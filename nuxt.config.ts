@@ -124,7 +124,9 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     public: {
-      appName: 'Theater Idol'
+      appName: 'Theater Idol',
+      apiUrl: process.env.API_URL || 'http://localhost:8080/api/v1',
+      wsUrl: process.env.WS_URL || 'ws://localhost:8080/api/v1/chat/ws'
     }
   }
 })

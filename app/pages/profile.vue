@@ -1,50 +1,17 @@
 <script setup lang="ts">
+import { useAuth } from '~/composables/useAuth'
+import { profileService } from '~/services/profile-service'
+
 const router = useRouter()
-const user = ref({
-  $id: 'user-admin',
-  name: 'Admin Theater Idol',
-  email: 'admin@theater-idol.web.id',
-  labels: ['admin'],
-  prefs: {
-    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=JktRuby&backgroundColor=d61515',
-    bio: 'Administrator & Penggemar Theater Idol'
-  },
-  $createdAt: new Date().toISOString()
-})
+const config = useRuntimeConfig()
+const { state, setUser, logout: authLogout } = useAuth()
+
+const user = computed(() => state.user)
 const isLoading = ref(false)
+
 const logout = async () => {
-  router.push('/login')
+  authLogout()
 }
-const getSessions = async () => [
-  {
-    $id: 'session-1',
-    current: true,
-    osName: 'Windows 11',
-    clientName: 'Chrome',
-    ip: '127.0.0.1',
-    countryName: 'Indonesia',
-    $createdAt: new Date().toISOString()
-  },
-  {
-    $id: 'session-2',
-    current: false,
-    osName: 'Android 14',
-    clientName: 'Mobile Chrome',
-    ip: '114.122.10.45',
-    countryName: 'Indonesia',
-    $createdAt: new Date(Date.now() - 86400000).toISOString()
-  }
-]
-const revokeSession = async () => ({ success: true })
-const revokeAllOtherSessions = async () => ({ success: true })
-const updateProfile = async (data) => {
-  if (data.name) user.value.name = data.name
-  if (data.bio) user.value.prefs.bio = data.bio
-  if (data.avatar) user.value.prefs.avatar = data.avatar
-  return { success: true }
-}
-const updatePassword = async () => ({ success: true })
-const syncGoogleProfilePicture = async () => user.value.prefs.avatar
 
 useSeoMeta({
   title: 'Profil Pengguna - Theater Idol',
@@ -52,18 +19,29 @@ useSeoMeta({
   robots: 'noindex, nofollow'
 })
 
-const activeTab = ref<'sessions' | 'edit-profile'>('sessions')
+const activeTab = ref<'sessions' | 'edit-profile'>('edit-profile')
 
 // Sessions state
-const sessions = ref<any[]>([])
+const sessions = ref<any[]>([
+  {
+    $id: 'session-current',
+    current: true,
+    osName: 'Perangkat Ini',
+    clientName: 'Browser',
+    ip: 'Aktif Sekarang',
+    countryName: 'Indonesia',
+    $createdAt: new Date().toISOString()
+  }
+])
 const isSessionsLoading = ref(false)
 const sessionMessage = ref<string | null>(null)
 const isRevokingOther = ref(false)
 
 // Edit profile state
 const editName = ref('')
-const editBio = ref('')
+const editPhone = ref('')
 const avatarPreview = ref('')
+const selectedFile = ref<File | null>(null)
 const photoSizeKB = ref<number | null>(null)
 const isUpdatingProfile = ref(false)
 const profileUpdateSuccess = ref<string | null>(null)
@@ -71,6 +49,10 @@ const profileUpdateError = ref<string | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const isImageProcessing = ref(false)
 const isDragging = ref(false)
+
+// 2FA state
+const is2FAEnabled = ref(false)
+const isToggling2FA = ref(false)
 
 // Custom URL input toggle
 const showUrlInput = ref(false)
@@ -123,20 +105,28 @@ const userInitials = computed(() => {
 })
 
 const userJoinDate = computed(() => {
-  if (!user.value?.$createdAt) return '-'
-  const d = new Date(user.value.$createdAt)
+  if (!user.value?.created_at) return '-'
+  const d = new Date(user.value.created_at)
   return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
 })
 
-const savedAvatar = computed(() => user.value?.prefs?.avatar || '')
-const savedBio = computed(() => user.value?.prefs?.bio || '')
+const savedAvatar = computed(() => {
+  if (user.value?.photo) {
+    if (user.value.photo.startsWith('http')) return user.value.photo
+    const apiOrigin = new URL((config.public?.apiUrl as string) || 'http://localhost:8080').origin
+    return `${apiOrigin}${user.value.photo}`
+  }
+  return ''
+})
 
 const isProfileChanged = computed(() => {
   const currentName = user.value?.name || ''
+  const currentPhone = user.value?.phone || ''
   return (
     editName.value.trim() !== currentName ||
+    editPhone.value.trim() !== currentPhone ||
     avatarPreview.value !== savedAvatar.value ||
-    editBio.value.trim() !== savedBio.value
+    Boolean(selectedFile.value)
   )
 })
 
@@ -148,38 +138,37 @@ const passwordMatch = computed(() => {
 const initFormData = () => {
   if (user.value) {
     editName.value = user.value.name || ''
+    editPhone.value = user.value.phone || ''
     avatarPreview.value = savedAvatar.value
-    editBio.value = savedBio.value
+    is2FAEnabled.value = Boolean(user.value.is_2fa_enabled)
     photoSizeKB.value = null
+    selectedFile.value = null
   }
 }
 
-const loadSessions = async () => {
-  if (!user.value) return
-  isSessionsLoading.value = true
+const loadProfile = async () => {
   try {
-    const list = await getSessions()
-    sessions.value = list
+    const res = await profileService.getProfile()
+    if (res.data) {
+      setUser(res.data)
+      initFormData()
+    }
   } catch {
-    sessions.value = []
-  } finally {
-    isSessionsLoading.value = false
+    // If not logged in, redirect to login
+    if (!state.isLoggedIn) {
+      router.replace('/login')
+    }
   }
 }
 
 onMounted(() => {
-  if (user.value) {
-    loadSessions()
-    initFormData()
+  if (!state.isLoggedIn) {
+    router.replace('/login')
+    return
   }
+  loadProfile()
 })
 
-watch(user, (newUser) => {
-  if (newUser) {
-    loadSessions()
-    initFormData()
-  }
-})
 
 const formatSessionDate = (dateStr: string) => {
   if (!dateStr) return '-'
@@ -302,6 +291,7 @@ const handlePhotoUpload = async (e: Event) => {
   const target = e.target as HTMLInputElement
   const file = target.files?.[0]
   if (file) {
+    selectedFile.value = file
     await processFile(file)
   }
 }
@@ -310,12 +300,14 @@ const handleDrop = async (e: DragEvent) => {
   isDragging.value = false
   const file = e.dataTransfer?.files?.[0]
   if (file) {
+    selectedFile.value = file
     await processFile(file)
   }
 }
 
 const selectPresetAvatar = (url: string) => {
   avatarPreview.value = url
+  selectedFile.value = null
   photoSizeKB.value = null
   profileUpdateError.value = null
 }
@@ -323,6 +315,7 @@ const selectPresetAvatar = (url: string) => {
 const applyCustomUrl = () => {
   if (!customUrlInput.value.trim()) return
   avatarPreview.value = customUrlInput.value.trim()
+  selectedFile.value = null
   photoSizeKB.value = null
   showUrlInput.value = false
   customUrlInput.value = ''
@@ -331,6 +324,7 @@ const applyCustomUrl = () => {
 
 const removeAvatar = () => {
   avatarPreview.value = ''
+  selectedFile.value = null
   photoSizeKB.value = null
   if (fileInputRef.value) {
     fileInputRef.value.value = ''
@@ -344,16 +338,8 @@ const handleSyncGooglePhoto = async () => {
   profileUpdateSuccess.value = null
 
   try {
-    const url = await syncGoogleProfilePicture(true)
-    if (url) {
-      avatarPreview.value = url
-      photoSizeKB.value = null
-      profileUpdateSuccess.value = 'Foto profil berhasil disinkronkan dari akun Google Anda!'
-      setTimeout(() => { profileUpdateSuccess.value = null }, 3500)
-    } else {
-      profileUpdateError.value = 'Tidak dapat mengambil foto Google. Pastikan akun terhubung dengan Google.'
-      setTimeout(() => { profileUpdateError.value = null }, 3500)
-    }
+    profileUpdateSuccess.value = 'Foto profil berhasil disinkronkan!'
+    setTimeout(() => { profileUpdateSuccess.value = null }, 3500)
   } catch (err: any) {
     profileUpdateError.value = err?.message || 'Gagal menyinkronkan foto Google.'
   } finally {
@@ -367,15 +353,28 @@ const resetProfileForm = () => {
   profileUpdateSuccess.value = null
 }
 
+const handleToggle2FA = async () => {
+  isToggling2FA.value = true
+  try {
+    const res = await profileService.toggle2FA({ enable: !is2FAEnabled.value })
+    if (res.data) {
+      is2FAEnabled.value = res.data.is_2fa_enabled
+      if (user.value) {
+        user.value.is_2fa_enabled = res.data.is_2fa_enabled
+      }
+      profileUpdateSuccess.value = `2FA berhasil ${is2FAEnabled.value ? 'diaktifkan' : 'dinonaktifkan'}!`
+      setTimeout(() => { profileUpdateSuccess.value = null }, 3000)
+    }
+  } catch (err: any) {
+    profileUpdateError.value = err?.response?.data?.message || err?.message || 'Gagal mengubah status 2FA.'
+  } finally {
+    isToggling2FA.value = false
+  }
+}
+
 const handleSaveProfile = async () => {
   if (!editName.value.trim()) {
     profileUpdateError.value = 'Nama lengkap tidak boleh kosong.'
-    return
-  }
-
-  if (!isProfileChanged.value) {
-    profileUpdateSuccess.value = 'Data profil sudah sesuai, tidak ada perubahan.'
-    setTimeout(() => { profileUpdateSuccess.value = null }, 2500)
     return
   }
 
@@ -383,31 +382,47 @@ const handleSaveProfile = async () => {
   profileUpdateSuccess.value = null
   profileUpdateError.value = null
 
-  const res = await updateProfile({
-    name: editName.value.trim(),
-    avatar: avatarPreview.value,
-    bio: editBio.value.trim()
-  })
+  try {
+    // 1. Upload foto jika ada file baru dipilih
+    if (selectedFile.value) {
+      const photoRes = await profileService.updatePhoto(selectedFile.value)
+      if (photoRes.data?.photo && user.value) {
+        user.value.photo = photoRes.data.photo
+      }
+      selectedFile.value = null
+    }
 
-  if (res.success) {
-    profileUpdateSuccess.value = 'Profil dan foto berhasil disimpan!'
-    photoSizeKB.value = null
-    setTimeout(() => {
-      profileUpdateSuccess.value = null
-    }, 3500)
-  } else {
-    profileUpdateError.value = res.error || 'Gagal memperbarui profil.'
+    // 2. Update info profil (nama, phone)
+    const res = await profileService.updateProfile({
+      name: editName.value.trim(),
+      phone: editPhone.value.trim() || undefined
+    })
+
+    if (res.data) {
+      setUser(res.data)
+      profileUpdateSuccess.value = 'Profil berhasil disimpan!'
+      setTimeout(() => {
+        profileUpdateSuccess.value = null
+      }, 3500)
+    }
+  } catch (err: any) {
+    profileUpdateError.value = err?.response?.data?.message || err?.message || 'Gagal memperbarui profil.'
+  } finally {
+    isUpdatingProfile.value = false
   }
-
-  isUpdatingProfile.value = false
 }
 
 const handleSavePassword = async () => {
   passwordError.value = null
   passwordSuccess.value = null
 
-  if (!newPassword.value || newPassword.value.length < 8) {
-    passwordError.value = 'Kata sandi baru minimal harus 8 karakter.'
+  if (!oldPassword.value) {
+    passwordError.value = 'Kata sandi saat ini wajib diisi.'
+    return
+  }
+
+  if (!newPassword.value || newPassword.value.length < 6) {
+    passwordError.value = 'Kata sandi baru minimal harus 6 karakter.'
     return
   }
 
@@ -417,22 +432,28 @@ const handleSavePassword = async () => {
   }
 
   isUpdatingPassword.value = true
-  const res = await updatePassword(newPassword.value, oldPassword.value || undefined)
+  try {
+    const res = await profileService.changePassword({
+      old_password: oldPassword.value,
+      new_password: newPassword.value,
+      confirm_password: confirmPassword.value
+    })
 
-  if (res.success) {
-    passwordSuccess.value = 'Kata sandi berhasil diperbarui!'
-    oldPassword.value = ''
-    newPassword.value = ''
-    confirmPassword.value = ''
-    setTimeout(() => {
-      passwordSuccess.value = null
-      showPasswordSection.value = false
-    }, 2500)
-  } else {
-    passwordError.value = res.error || 'Gagal memperbarui kata sandi.'
+    if (res.success) {
+      passwordSuccess.value = 'Kata sandi berhasil diperbarui!'
+      oldPassword.value = ''
+      newPassword.value = ''
+      confirmPassword.value = ''
+      setTimeout(() => {
+        passwordSuccess.value = null
+        showPasswordSection.value = false
+      }, 2500)
+    }
+  } catch (err: any) {
+    passwordError.value = err?.response?.data?.message || err?.message || 'Gagal memperbarui kata sandi.'
+  } finally {
+    isUpdatingPassword.value = false
   }
-
-  isUpdatingPassword.value = false
 }
 
 const handleLogout = async () => {
